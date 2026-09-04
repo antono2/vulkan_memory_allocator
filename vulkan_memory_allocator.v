@@ -32,6 +32,46 @@ mut:
 	pool_size              u32
 }
 
+fn (a &Allocator) has_free_slot() bool {
+	if a.pool_size < max_pools {
+		return true
+	}
+	for i in 0 .. a.pool_size {
+		if isnil(a.pools[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+fn (mut a Allocator) remember_memory(memory vk.DeviceMemory) bool {
+	for i in 0 .. a.pool_size {
+		if isnil(a.pools[i]) {
+			a.pools[i] = memory
+			return true
+		}
+	}
+	if a.pool_size >= max_pools {
+		return false
+	}
+	a.pools[a.pool_size] = memory
+	a.pool_size++
+	return true
+}
+
+fn (mut a Allocator) forget_memory(memory vk.DeviceMemory) bool {
+	for i in 0 .. a.pool_size {
+		if a.pools[i] == memory {
+			a.pools[i] = unsafe { nil }
+			for a.pool_size > 0 && isnil(a.pools[a.pool_size - 1]) {
+				a.pool_size--
+			}
+			return true
+		}
+	}
+	return false
+}
+
 pub enum MemType {
 	// Memory that is accessible from the CPU and GPU
 	staging
@@ -131,7 +171,7 @@ pub fn (mut a Allocator) allocate(mut req vk.MemoryRequirements, type MemType, m
 		eprintln('No compatible Vulkan memory type: type bits 0x${req.memoryTypeBits:08x}, required flags 0x${u32(mem_type):08x}')
 		return .error_feature_not_present
 	}
-	if a.pool_size >= max_pools {
+	if !a.has_free_slot() {
 		return .error_too_many_objects
 	}
 	vkalloc_info := vk.MemoryAllocateInfo{
@@ -140,13 +180,18 @@ pub fn (mut a Allocator) allocate(mut req vk.MemoryRequirements, type MemType, m
 	}
 	result := vk.allocate_memory(a.create_info.device, &vkalloc_info, unsafe { nil }, &alloc_info.memory)
 	if result == .success {
-		a.pools[a.pool_size] = alloc_info.memory
-		a.pool_size++
+		if !a.remember_memory(alloc_info.memory) {
+			vk.free_memory(a.create_info.device, alloc_info.memory, unsafe { nil })
+			alloc_info = AllocationInfo{}
+			return .error_too_many_objects
+		}
 	}
 	return result
 }
 
 pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type MemType, mut buffer vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
+	buffer = unsafe { nil }
+	alloc_info = AllocationInfo{}
 	mut req := vk.MemoryRequirements{}
 	mut res := vk.create_buffer(a.create_info.device, buffer_info, unsafe { nil }, buffer)
 	if res != vk.Result.success {
@@ -176,6 +221,8 @@ pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type Me
 }
 
 pub fn (mut a Allocator) create_image(p_image_create_info &vk.ImageCreateInfo, type MemType, p_image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
+	unsafe { *p_image = nil }
+	alloc_info = AllocationInfo{}
 	mut req := vk.MemoryRequirements{}
 	mut res := vk.create_image(a.create_info.device, p_image_create_info, unsafe { nil }, p_image)
 	if res != vk.Result.success {
@@ -204,22 +251,33 @@ pub fn (mut a Allocator) create_image(p_image_create_info &vk.ImageCreateInfo, t
 }
 
 pub fn (mut a Allocator) map(mut alloc_info AllocationInfo, data &voidptr) vk.Result {
+	if isnil(alloc_info.memory) {
+		return .error_memory_map_failed
+	}
 	return vk.map_memory(a.create_info.device, alloc_info.memory, alloc_info.offset, alloc_info.size, 0, data)
 }
 
 pub fn (mut a Allocator) unmap(mut alloc_info AllocationInfo) {
-	vk.unmap_memory(a.create_info.device, alloc_info.memory)
+	if !isnil(alloc_info.memory) {
+		vk.unmap_memory(a.create_info.device, alloc_info.memory)
+	}
 }
 
-pub fn (mut a Allocator) allocator_free(mut alloc_info AllocationInfo) {
-	for i in 0 .. a.pool_size {
-		if a.pools[i] == alloc_info.memory {
-			vk.free_memory(a.create_info.device, alloc_info.memory, unsafe { nil })
-			a.pools[i] = unsafe { nil }
-			alloc_info.memory = unsafe { nil }
-			return
-		}
+// release frees a tracked allocation. It returns false when the allocation is
+// null or belongs to a different allocator.
+pub fn (mut a Allocator) release(mut alloc_info AllocationInfo) bool {
+	if isnil(alloc_info.memory) || !a.forget_memory(alloc_info.memory) {
+		return false
 	}
+	vk.free_memory(a.create_info.device, alloc_info.memory, unsafe { nil })
+	alloc_info = AllocationInfo{}
+	return true
+}
+
+// allocator_free is retained for source compatibility. New code should use
+// release() so an ownership mismatch can be detected.
+pub fn (mut a Allocator) allocator_free(mut alloc_info AllocationInfo) {
+	_ = a.release(mut alloc_info)
 }
 
 pub fn (mut a Allocator) destroy() {
