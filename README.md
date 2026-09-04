@@ -38,7 +38,7 @@ Allocate and bind a buffer, checking the returned Vulkan result:
 ```v
 mut buffer := vk.Buffer(unsafe { nil })
 mut allocation := vma.AllocationInfo{}
-result := allocator.create_buffer(&buffer_info, .staging, mut buffer, mut allocation)
+result := allocator.create_buffer(&buffer_info, .staging, &buffer, mut allocation)
 if result != .success {
 	return error('could not create buffer: ${result}')
 }

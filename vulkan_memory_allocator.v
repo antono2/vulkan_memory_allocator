@@ -10,7 +10,7 @@
   vulkan.bind_..._session_memory_khr(...)
 
   Use the Allocator to create a buffer or image.
-  pub fn (mut a Allocator) create_buffer(buffer_info &vulkan.BufferCreateInfo, type MemType, mut buffer vulkan.Buffer, mut alloc_info AllocationInfo) vulkan.Result
+  pub fn (mut a Allocator) create_buffer(buffer_info &vulkan.BufferCreateInfo, type MemType, buffer &vulkan.Buffer, mut alloc_info AllocationInfo) vulkan.Result
   pub fn (mut a Allocator) create_image(p_image_create_info &vulkan.ImageCreateInfo, type MemType, p_image &vulkan.Image, mut alloc_info AllocationInfo) vulkan.Result
 
   And map to access them from CPU.
@@ -189,8 +189,8 @@ pub fn (mut a Allocator) allocate(mut req vk.MemoryRequirements, type MemType, m
 	return result
 }
 
-pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type MemType, mut buffer vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
-	buffer = unsafe { nil }
+pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type MemType, buffer &vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
+	unsafe { *buffer = nil }
 	alloc_info = AllocationInfo{}
 	mut req := vk.MemoryRequirements{}
 	mut res := vk.create_buffer(a.create_info.device, buffer_info, unsafe { nil }, buffer)
@@ -199,20 +199,20 @@ pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type Me
 		return res
 	}
 
-	vk.get_buffer_memory_requirements(a.create_info.device, buffer, mut &req)
+	vk.get_buffer_memory_requirements(a.create_info.device, *buffer, mut &req)
 	res = a.allocate(mut req, type, mut alloc_info)
 	if res != vk.Result.success {
 		eprintln('Could not allocate Vulkan buffer memory: ${res}')
-		vk.destroy_buffer(a.create_info.device, buffer, unsafe { nil })
-		buffer = unsafe { nil }
+		vk.destroy_buffer(a.create_info.device, *buffer, unsafe { nil })
+		unsafe { *buffer = nil }
 		return res
 	}
 
-	res = vk.bind_buffer_memory(a.create_info.device, buffer, alloc_info.memory, alloc_info.offset)
+	res = vk.bind_buffer_memory(a.create_info.device, *buffer, alloc_info.memory, alloc_info.offset)
 	if res != vk.Result.success {
 		eprintln('Could not bind Vulkan buffer memory: ${res}')
-		vk.destroy_buffer(a.create_info.device, buffer, unsafe { nil })
-		buffer = unsafe { nil }
+		vk.destroy_buffer(a.create_info.device, *buffer, unsafe { nil })
+		unsafe { *buffer = nil }
 		a.allocator_free(mut alloc_info)
 		return res
 	}
