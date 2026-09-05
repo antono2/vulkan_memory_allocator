@@ -1,7 +1,7 @@
 Module {
   name: 'vulkan_memory_allocator'
   author: 'Anton Oreskin'
-  description: 'Provides basic functionality to allocate memory on the GPU'
+  description: 'Dedicated Vulkan memory allocation helpers for buffers and images'
   version: '1.0.0'
   license: 'MIT'
   repo_url: 'https://github.com/antono2/vulkan_memory_allocator'
