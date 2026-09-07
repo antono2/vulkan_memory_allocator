@@ -6,5 +6,5 @@ Module {
   license: 'MIT'
   repo_url: 'https://github.com/antono2/vulkan_memory_allocator'
   tags: ['V','vulkan','allocator']
-  dependencies: ['https://github.com/antono2/vulkan']
+  dependencies: ['antono2.vulkan']
 }

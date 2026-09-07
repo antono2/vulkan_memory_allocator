@@ -18,7 +18,7 @@
 */
 module vulkan_memory_allocator
 
-import vulkan as vk
+import antono2.vulkan as vk
 
 pub const max_pools = 256
 pub const memory_block = 1024 * 1024
