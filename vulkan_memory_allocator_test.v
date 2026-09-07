@@ -1,6 +1,6 @@
-module vulkan_memory_allocator
+module vkmemalloc
 
-import vulkan as vk
+import antono2.vulkan as vk
 
 fn fake_memory(value usize) vk.DeviceMemory {
 	return unsafe { voidptr(value) }

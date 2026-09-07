@@ -16,7 +16,7 @@
   And map to access them from CPU.
   pub fn (mut a Allocator) map(mut alloc_info AllocationInfo, data &voidptr) vulkan.Result
 */
-module vulkan_memory_allocator
+module vkmemalloc
 
 import antono2.vulkan as vk
 

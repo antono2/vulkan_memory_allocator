@@ -13,7 +13,7 @@ applications with a modest number of long-lived resources.
 ## Install
 ```sh
 v install https://github.com/antono2/vulkan
-v install https://github.com/antono2/vulkan_memory_allocator
+v install antono2.vkmemalloc
 ```
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
@@ -25,7 +25,7 @@ device:
 
 ```v
 import vulkan as vk
-import vulkan_memory_allocator as vma
+import antono2.vkmemalloc as vma
 
 mut allocator := vma.new(vma.AllocatorCreateInfo{
 	physical_device: physical_device

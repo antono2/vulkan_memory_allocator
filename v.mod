@@ -1,5 +1,5 @@
 Module {
-  name: 'vulkan_memory_allocator'
+  name: 'antono2.vkmemalloc'
   author: 'Anton Oreskin'
   description: 'Dedicated Vulkan memory allocation helpers for buffers and images'
   version: '1.0.0'
