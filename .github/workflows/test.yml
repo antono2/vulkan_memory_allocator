@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       VMODULES: ${{ github.workspace }}/source/modules
+      VULKAN_SDK: /usr
     steps:
       - uses: actions/checkout@v7
         with:
