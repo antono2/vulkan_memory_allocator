@@ -1,0 +1,31 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    env:
+      VMODULES: ${{ github.workspace }}/source/modules
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: source/modules/antono2/vkmemalloc
+      - uses: actions/checkout@v7
+        with:
+          repository: antono2/vulkan
+          path: source/modules/antono2/vulkan
+      - uses: prantlf/setup-v-action@v4
+      - name: Install Vulkan development library
+        run: sudo apt-get update && sudo apt-get install -y libvulkan-dev
+      - name: Run allocator tests
+        working-directory: source/modules/antono2/vkmemalloc
+        run: v test .
