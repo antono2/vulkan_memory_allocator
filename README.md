@@ -1,7 +1,7 @@
 
 # Vulkan memory allocation helper for V
 
-[Project portfolio](https://oreskin.de/projects_en.php) · [Support independent development](https://oreskin.de/dono_en.php)
+[Project portfolio](https://oreskin.de/projects_en.php)
 
 This module provides small, explicit helpers for selecting Vulkan memory types,
 allocating and binding memory for buffers and images, mapping host-visible
