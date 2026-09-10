@@ -290,11 +290,12 @@ fn (a &Allocator) owns_allocation(alloc_info AllocationInfo) bool {
 		&& alloc_info.mem_type == alloc_info.reservation.memory_type
 }
 
-fn (mut a Allocator) allocate_buffer_memory(buffer vk.Buffer, type MemType, mut alloc_info AllocationInfo) vk.Result {
+fn (mut a Allocator) allocate_buffer_memory(buffer vk.Buffer, type MemType, force_dedicated bool, mut alloc_info AllocationInfo) vk.Result {
 	if a.api_version < vk.api_version_1_1 {
 		mut requirements := vk.MemoryRequirements{}
 		vk.get_buffer_memory_requirements(a.create_info.device, buffer, mut requirements)
-		return a.allocate_with_policy(mut requirements, type, unsafe { nil }, false, mut alloc_info)
+		return a.allocate_with_policy(mut requirements, type, unsafe { nil }, force_dedicated, mut
+			alloc_info)
 	}
 	mut dedicated_requirements := vk.MemoryDedicatedRequirements{}
 	mut requirements := vk.MemoryRequirements2{
@@ -304,7 +305,7 @@ fn (mut a Allocator) allocate_buffer_memory(buffer vk.Buffer, type MemType, mut 
 		buffer: buffer
 	}
 	vk.get_buffer_memory_requirements2(a.create_info.device, &info, mut requirements)
-	dedicated := dedicated_requirements.requiresDedicatedAllocation == vk._true
+	dedicated := force_dedicated || dedicated_requirements.requiresDedicatedAllocation == vk._true
 		|| dedicated_requirements.prefersDedicatedAllocation == vk._true
 	if !dedicated {
 		return a.allocate_with_policy(mut requirements.memoryRequirements, type, unsafe { nil },
@@ -338,6 +339,16 @@ fn (mut a Allocator) allocate_image_memory(image vk.Image, type MemType, mut all
 
 // create_buffer creates a buffer, suballocates compatible memory, and binds it.
 pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type MemType, buffer &vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
+	return a.create_buffer_with_policy(buffer_info, type, false, buffer, mut alloc_info)
+}
+
+// create_dedicated_buffer creates a buffer with an isolated memory block. Use
+// it for persistent mapping, external memory, or explicit lifetime isolation.
+pub fn (mut a Allocator) create_dedicated_buffer(buffer_info &vk.BufferCreateInfo, type MemType, buffer &vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
+	return a.create_buffer_with_policy(buffer_info, type, true, buffer, mut alloc_info)
+}
+
+fn (mut a Allocator) create_buffer_with_policy(buffer_info &vk.BufferCreateInfo, type MemType, dedicated bool, buffer &vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
 	unsafe {
 		*buffer = nil
 	}
@@ -348,7 +359,7 @@ pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type Me
 		return res
 	}
 
-	res = a.allocate_buffer_memory(*buffer, type, mut alloc_info)
+	res = a.allocate_buffer_memory(*buffer, type, dedicated, mut alloc_info)
 	if res != vk.Result.success {
 		eprintln('Could not allocate Vulkan buffer memory: ${res}')
 		vk.destroy_buffer(a.create_info.device, *buffer, unsafe { nil })
@@ -424,13 +435,23 @@ pub fn (mut a Allocator) unmap(mut alloc_info AllocationInfo) {
 }
 
 // release returns a tracked suballocation to its VkDeviceMemory block. Empty
-// blocks remain cached until trim_empty_blocks() or destroy() is called.
+// shared blocks remain cached; dedicated blocks are freed immediately.
 pub fn (mut a Allocator) release(mut alloc_info AllocationInfo) bool {
 	if !a.owns_allocation(alloc_info) {
 		return false
 	}
+	block_id := alloc_info.reservation.block_id
+	dedicated := a.planner.block_is_dedicated(block_id) or { return false }
 	if !a.planner.release(alloc_info.reservation) {
 		return false
+	}
+	if dedicated {
+		memory := a.memory_for_block(block_id) or { return false }
+		if !a.planner.remove_empty_block(block_id) {
+			return false
+		}
+		_ = a.forget_block(block_id) or { return false }
+		vk.free_memory(a.create_info.device, memory, unsafe { nil })
 	}
 	alloc_info = AllocationInfo{}
 	return true

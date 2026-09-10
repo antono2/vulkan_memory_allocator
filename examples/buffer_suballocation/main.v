@@ -159,7 +159,34 @@ fn run() ! {
 	second_buffer = vk.Buffer(unsafe { nil })
 	second_released := allocator.release(mut second_allocation)
 	assert second_released
-	assert allocator.trim_empty_blocks() == 2
+	assert allocator.trim_empty_blocks() == 1
+	assert allocator.stats().block_count == 0
+
+	mut uploads := vma.new_upload_ring(mut allocator, 1024)!
+	defer {
+		_ = uploads.destroy()
+	}
+	first_upload := uploads.allocate(400, 16)!
+	second_upload := uploads.allocate(400, 16)!
+	unsafe {
+		*(&u8(first_upload.data)) = 21
+		*(&u8(second_upload.data)) = 22
+	}
+	first_retired := uploads.retire(first_upload)
+	assert first_retired
+	wrapped_upload := uploads.allocate(300, 16)!
+	assert wrapped_upload.offset == 0
+	unsafe {
+		*(&u8(wrapped_upload.data)) = 23
+	}
+	assert !uploads.retire(wrapped_upload)
+	second_retired := uploads.retire(second_upload)
+	assert second_retired
+	wrapped_retired := uploads.retire(wrapped_upload)
+	assert wrapped_retired
+	println('persistent upload ring wrapped safely to offset ${wrapped_upload.offset}')
+	uploads_destroyed := uploads.destroy()
+	assert uploads_destroyed
 	assert allocator.stats().block_count == 0
 }
 
