@@ -26,7 +26,7 @@ jobs:
           path: source/modules/antono2/vulkan
       - uses: actions/checkout@v7
         with:
-          repository: antono2/v_generic_pool
+          repository: antono2/memory
           ref: v0.2.0
           path: source/modules/generic_pool
       - uses: prantlf/setup-v-action@v4
