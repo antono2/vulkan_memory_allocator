@@ -19,8 +19,9 @@ VPM installs the Vulkan bindings and `generic_pool` dependencies automatically.
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
 
-The allocator uses `generic_pool.RangeAllocator` for its dependency-free block
-suballocation policy. Vulkan handles remain isolated in this module.
+The allocator uses [`generic_pool.RangeAllocator`](https://github.com/antono2/memory)
+for its dependency-free block suballocation policy. Vulkan handles remain
+isolated in this module.
 
 ## Basic use
 
