@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.1.1 - 2026-09-10
+
+- Pin the general allocation dependency to `memory` v0.2.0 so released
+  `generic_pool` imports remain reproducible when the module is renamed.
+
 ## 2.1.0 - 2026-09-10
 
 - Free dedicated allocation blocks immediately on release while retaining
