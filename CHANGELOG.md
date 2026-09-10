@@ -4,8 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## 2.2.0 - 2026-09-10
 
-- Migrate the allocation-policy dependency to the canonical `antono2.memory`
-  module and pin it to the immutable v1.0.2 release.
+- Migrate the allocation-policy dependency to the canonical `antono2.mem`
+  module and pin it to the immutable v1.0.3 release.
 - Return a local `UploadRingStats` value from `UploadRing.stats()` so the public
   Vulkan API does not expose the underlying policy module's type.
 - Share one reference-counted Vulkan mapping across mapped suballocations in the
