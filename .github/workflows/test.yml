@@ -31,7 +31,20 @@ jobs:
           path: source/modules/generic_pool
       - uses: prantlf/setup-v-action@v4
       - name: Install Vulkan development library
-        run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev
+        run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev mesa-vulkan-drivers
+      - name: Check formatting
+        working-directory: source/modules/antono2/vkmemalloc
+        run: v fmt -verify .
+      - name: Vet allocator sources
+        working-directory: source/modules/antono2/vkmemalloc
+        # V 0.5.2's directory-mode vet parser does not accept aliased imports.
+        run: v vet block_pool.v block_pool_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
       - name: Run allocator tests
         working-directory: source/modules/antono2/vkmemalloc
         run: v test .
+      - name: Run Vulkan suballocation smoke test
+        working-directory: source/modules/antono2/vkmemalloc
+        run: |
+          lavapipe_icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
+          test -n "$lavapipe_icd"
+          VK_ICD_FILENAMES="$lavapipe_icd" v run examples/buffer_suballocation

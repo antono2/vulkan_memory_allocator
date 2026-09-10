@@ -1,16 +1,14 @@
-
 # Vulkan memory allocation helper for V
 
 [Project portfolio](https://oreskin.de/projects_en.php)
 
 This module provides small, explicit helpers for selecting Vulkan memory types,
 allocating and binding memory for buffers and images, mapping host-visible
-allocations, and releasing owned `VkDeviceMemory` handles.
+allocations, and suballocating shared `VkDeviceMemory` blocks.
 
 Despite the repository name, this is not a binding to AMD's Vulkan Memory
-Allocator and it is not a suballocator. Each successful request creates one
-dedicated Vulkan memory allocation. It is suitable for examples and
-applications with a modest number of long-lived resources.
+Allocator. It is a compact V-native allocator intended to remain understandable
+enough for examples while avoiding one Vulkan allocation per resource.
 
 ## Install
 ```sh
@@ -30,14 +28,25 @@ Create one allocator after selecting a physical device and creating its logical
 device:
 
 ```v
-import vulkan as vk
+import antono2.vulkan as vk
 import antono2.vkmemalloc as vma
 
 mut allocator := vma.new(vma.AllocatorCreateInfo{
 	physical_device: physical_device
 	device: device
+	preferred_block_size: 64 * 1024 * 1024
 })
 ```
+
+Buffer blocks are separated by Vulkan memory-type index. Small buffers share the
+preferred block size; a buffer larger than that receives a large-enough block
+of its own. Images use isolated dedicated blocks, avoiding buffer-image
+granularity conflicts and satisfying Vulkan 1.1 dedicated-allocation metadata.
+`max_memory_blocks` defaults to 256 and may be lowered in the create information.
+
+The lower-level `allocate()` method also uses an isolated block because raw
+`VkMemoryRequirements` do not identify whether the caller will bind a buffer or
+image. Use `create_buffer()` when automatic buffer suballocation is desired.
 
 Allocate and bind a buffer, checking the returned Vulkan result:
 
@@ -70,8 +79,27 @@ if !allocator.release(mut allocation) {
 }
 ```
 
+`release()` returns only the range to its existing block so future resources can
+reuse it. Empty blocks remain cached; reclaim them explicitly when appropriate:
+
+```v
+println('released ${allocator.trim_empty_blocks()} empty memory blocks')
+```
+
 Call `allocator.destroy()` only after destroying every buffer and image backed
 by it. This frees any allocations that were not individually released.
+
+## Statistics
+
+```v
+stats := allocator.stats()
+println('blocks: ${stats.block_count}')
+println('allocations: ${stats.allocation_count}')
+println('committed: ${stats.committed}, used: ${stats.used}, free: ${stats.free}')
+```
+
+`committed` is memory obtained through `vkAllocateMemory`; `used` is the sum of
+live resource ranges. Free bytes may be fragmented across blocks.
 
 ## Memory classes
 
@@ -85,12 +113,14 @@ by it. This frees any allocations that were not individually released.
 - An `AllocationInfo` belongs to the allocator that created it.
 - A successful `release()` clears the complete `AllocationInfo` and prevents a
   second free through that record.
-- The allocator tracks at most 256 simultaneous allocations. Released slots
-  are reused.
+- The allocator tracks at most 256 memory blocks by default. Each block can
+  contain many suballocations.
 - The allocator is not internally synchronized. Externally synchronize access
   when multiple threads can allocate or free concurrently.
-- It does not suballocate, defragment, budget memory, choose between equivalent
-  heaps, or automatically flush non-coherent memory.
+- Do not map two allocations sharing one memory block concurrently; Vulkan
+  permits a device-memory object to be mapped only once at a time.
+- The allocator does not relocate live resources, enforce heap budgets, choose
+  between equivalent heaps, or automatically flush non-coherent memory.
 - Vulkan objects must not outlive the memory bound to them.
 
 All allocation and binding functions return `vk.Result`; callers should handle
@@ -103,3 +133,14 @@ The bookkeeping tests do not require a Vulkan-capable GPU:
 ```sh
 v test .
 ```
+
+The runnable example creates two real buffers, verifies that they share a
+memory block, maps one range, creates a dedicated image, and releases and trims
+all backing blocks:
+
+```sh
+v run examples/buffer_suballocation
+```
+
+CI executes this example against Mesa's CPU Vulkan implementation, so it does
+not depend on access to a hardware GPU.

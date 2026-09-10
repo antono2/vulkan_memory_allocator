@@ -16,6 +16,7 @@ struct MemoryBlock {
 	id          u64
 	memory_type u32
 	capacity    u64
+	dedicated   bool
 	ranges      &generic_pool.RangeAllocator @[required]
 }
 
@@ -55,6 +56,15 @@ fn (pool &MemoryBlockPool) block_count() int {
 	return pool.blocks.len
 }
 
+fn (pool &MemoryBlockPool) block_allocation_count(block_id u64) ?int {
+	for block in pool.blocks {
+		if block.id == block_id {
+			return block.ranges.allocation_count()
+		}
+	}
+	return none
+}
+
 fn (pool &MemoryBlockPool) recommended_block_size(requested_size u64) !u64 {
 	if requested_size == 0 {
 		return error('allocation size must be greater than zero')
@@ -67,6 +77,14 @@ fn (pool &MemoryBlockPool) recommended_block_size(requested_size u64) !u64 {
 }
 
 fn (mut pool MemoryBlockPool) add_block(memory_type u32, capacity u64) !u64 {
+	return pool.add_block_with_policy(memory_type, capacity, false)
+}
+
+fn (mut pool MemoryBlockPool) add_dedicated_block(memory_type u32, capacity u64) !u64 {
+	return pool.add_block_with_policy(memory_type, capacity, true)
+}
+
+fn (mut pool MemoryBlockPool) add_block_with_policy(memory_type u32, capacity u64, dedicated bool) !u64 {
 	if capacity == 0 {
 		return error('memory block capacity must be greater than zero')
 	}
@@ -78,6 +96,7 @@ fn (mut pool MemoryBlockPool) add_block(memory_type u32, capacity u64) !u64 {
 		id:          id
 		memory_type: memory_type
 		capacity:    capacity
+		dedicated:   dedicated
 		ranges:      generic_pool.new_range_allocator(capacity)
 	}
 	return id
@@ -94,7 +113,7 @@ fn (mut pool MemoryBlockPool) reserve(memory_type u32, size u64, alignment u64) 
 		return error('allocation alignment must be greater than zero')
 	}
 	for mut block in pool.blocks {
-		if block.memory_type != memory_type {
+		if block.memory_type != memory_type || block.dedicated {
 			continue
 		}
 		if allocation := block.ranges.allocate(size, alignment) {
