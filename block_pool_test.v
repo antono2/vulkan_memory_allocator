@@ -63,6 +63,19 @@ fn test_block_pool_reports_exhaustion_without_mutation() {
 	}
 }
 
+fn test_block_pool_never_reuses_dedicated_blocks() {
+	mut pool := new_memory_block_pool(64, 2) or { panic(err) }
+	dedicated_id := pool.add_dedicated_block(2, 64) or { panic(err) }
+	dedicated := pool.reserve_from_block(dedicated_id, 32, 16) or { panic(err) }
+
+	if _ := pool.reserve(2, 16, 1) {
+		assert false, 'shared allocation must not reuse a dedicated block'
+	} else {
+		assert err.msg().contains('compatible memory block')
+	}
+	assert pool.contains(dedicated)
+}
+
 fn test_block_pool_release_coalesces_and_allows_empty_removal() {
 	mut pool := new_memory_block_pool(32, 2) or { panic(err) }
 	block_id := pool.add_block(3, 32) or { panic(err) }
