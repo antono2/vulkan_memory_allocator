@@ -15,10 +15,14 @@ applications with a modest number of long-lived resources.
 ## Install
 ```sh
 v install https://github.com/antono2/vulkan
+v install https://github.com/antono2/v_generic_pool
 v install antono2.vkmemalloc
 ```
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
+
+The allocator uses `generic_pool.RangeAllocator` for its dependency-free block
+suballocation policy. Vulkan handles remain isolated in this module.
 
 ## Basic use
 

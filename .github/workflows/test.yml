@@ -24,6 +24,11 @@ jobs:
         with:
           repository: antono2/vulkan
           path: source/modules/antono2/vulkan
+      - uses: actions/checkout@v7
+        with:
+          repository: antono2/v_generic_pool
+          ref: v0.2.0
+          path: source/modules/generic_pool
       - uses: prantlf/setup-v-action@v4
       - name: Install Vulkan development library
         run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev
