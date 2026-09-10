@@ -12,10 +12,10 @@ enough for examples while avoiding one Vulkan allocation per resource.
 
 ## Install
 ```sh
-v install https://github.com/antono2/vulkan
-v install https://github.com/antono2/v_generic_pool
 v install antono2.vkmemalloc
 ```
+
+VPM installs the Vulkan bindings and `generic_pool` dependencies automatically.
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
 

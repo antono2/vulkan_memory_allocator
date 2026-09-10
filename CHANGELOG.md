@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 2.0.0 - Unreleased
+## 2.0.0 - 2026-09-10
 
 - Suballocate aligned buffer ranges from reusable, memory-type-specific
   `VkDeviceMemory` blocks using `generic_pool.RangeAllocator` while keeping
