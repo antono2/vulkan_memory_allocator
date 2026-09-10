@@ -13,6 +13,8 @@ mut:
 	planner   &MemoryBlockPool = unsafe { nil }
 	pools     [max_pools]vk.DeviceMemory
 	block_ids [max_pools]u64
+	mapped    [max_pools]voidptr
+	map_refs  [max_pools]u32
 	pool_size u32
 }
 
@@ -36,6 +38,8 @@ fn (mut a Allocator) remember_block(memory vk.DeviceMemory, block_id u64) bool {
 		if isnil(a.pools[i]) {
 			a.pools[i] = memory
 			a.block_ids[i] = block_id
+			a.mapped[i] = unsafe { nil }
+			a.map_refs[i] = 0
 			return true
 		}
 	}
@@ -44,6 +48,8 @@ fn (mut a Allocator) remember_block(memory vk.DeviceMemory, block_id u64) bool {
 	}
 	a.pools[a.pool_size] = memory
 	a.block_ids[a.pool_size] = block_id
+	a.mapped[a.pool_size] = unsafe { nil }
+	a.map_refs[a.pool_size] = 0
 	a.pool_size++
 	return true
 }
@@ -54,10 +60,21 @@ fn (mut a Allocator) forget_block(block_id u64) ?vk.DeviceMemory {
 			memory := a.pools[i]
 			a.pools[i] = unsafe { nil }
 			a.block_ids[i] = 0
+			a.mapped[i] = unsafe { nil }
+			a.map_refs[i] = 0
 			for a.pool_size > 0 && isnil(a.pools[a.pool_size - 1]) {
 				a.pool_size--
 			}
 			return memory
+		}
+	}
+	return none
+}
+
+fn (a &Allocator) block_index(block_id u64) ?int {
+	for i in 0 .. a.pool_size {
+		if a.block_ids[i] == block_id && !isnil(a.pools[i]) {
+			return int(i)
 		}
 	}
 	return none
@@ -95,6 +112,7 @@ pub mut:
 	size u64
 mut:
 	reservation BlockReservation
+	mapped      bool
 }
 
 pub struct MemNode {
@@ -418,20 +436,53 @@ pub fn (mut a Allocator) create_image(p_image_create_info &vk.ImageCreateInfo, t
 	return vk.Result.success
 }
 
-// map maps the allocation's byte range for host access.
+// map maps the allocation's byte range for host access. Compatible allocations
+// sharing one VkDeviceMemory block share one Vulkan mapping internally.
 pub fn (mut a Allocator) map(mut alloc_info AllocationInfo, data &voidptr) vk.Result {
 	if !a.owns_allocation(alloc_info) {
+		eprintln('Cannot map an allocation not owned by this allocator')
 		return .error_memory_map_failed
 	}
-	return vk.map_memory(a.create_info.device, alloc_info.memory, alloc_info.offset,
-		alloc_info.size, 0, data)
+	if alloc_info.mapped {
+		eprintln('Cannot map an allocation that is already mapped')
+		return .error_memory_map_failed
+	}
+	index := a.block_index(alloc_info.reservation.block_id) or {
+		eprintln('Cannot map an allocation whose memory block is unavailable')
+		return .error_memory_map_failed
+	}
+	if isnil(a.mapped[index]) {
+		mut base := voidptr(unsafe { nil })
+		result := vk.map_memory(a.create_info.device, alloc_info.memory, 0, vk.whole_size, 0, &base)
+		if result != .success {
+			eprintln('Could not map Vulkan memory block ${alloc_info.reservation.block_id}: ${result}')
+			return result
+		}
+		a.mapped[index] = base
+	}
+	unsafe {
+		*data = voidptr(usize(a.mapped[index]) + usize(alloc_info.offset))
+	}
+	a.map_refs[index]++
+	alloc_info.mapped = true
+	return .success
 }
 
-// unmap unmaps the memory block containing an allocation.
+// unmap releases this allocation's mapping reference. The Vulkan memory block
+// remains mapped until every mapped suballocation has been unmapped.
 pub fn (mut a Allocator) unmap(mut alloc_info AllocationInfo) {
-	if a.owns_allocation(alloc_info) {
-		vk.unmap_memory(a.create_info.device, alloc_info.memory)
+	if !a.owns_allocation(alloc_info) || !alloc_info.mapped {
+		return
 	}
+	index := a.block_index(alloc_info.reservation.block_id) or { return }
+	if a.map_refs[index] > 0 {
+		a.map_refs[index]--
+	}
+	if a.map_refs[index] == 0 && !isnil(a.mapped[index]) {
+		vk.unmap_memory(a.create_info.device, a.pools[index])
+		a.mapped[index] = unsafe { nil }
+	}
+	alloc_info.mapped = false
 }
 
 // release returns a tracked suballocation to its VkDeviceMemory block. Empty
@@ -439,6 +490,9 @@ pub fn (mut a Allocator) unmap(mut alloc_info AllocationInfo) {
 pub fn (mut a Allocator) release(mut alloc_info AllocationInfo) bool {
 	if !a.owns_allocation(alloc_info) {
 		return false
+	}
+	if alloc_info.mapped {
+		a.unmap(mut alloc_info)
 	}
 	block_id := alloc_info.reservation.block_id
 	dedicated := a.planner.block_is_dedicated(block_id) or { return false }
@@ -529,6 +583,11 @@ pub fn (a &Allocator) stats() AllocatorStats {
 pub fn (mut a Allocator) destroy() {
 	for i in 0 .. a.pool_size {
 		if !isnil(a.pools[i]) {
+			if !isnil(a.mapped[i]) {
+				vk.unmap_memory(a.create_info.device, a.pools[i])
+				a.mapped[i] = unsafe { nil }
+				a.map_refs[i] = 0
+			}
 			vk.free_memory(a.create_info.device, a.pools[i], unsafe { nil })
 			a.pools[i] = unsafe { nil }
 			a.block_ids[i] = 0

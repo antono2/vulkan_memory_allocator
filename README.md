@@ -15,11 +15,12 @@ enough for examples while avoiding one Vulkan allocation per resource.
 v install antono2.vkmemalloc
 ```
 
-VPM installs the Vulkan bindings and `generic_pool` dependencies automatically.
+VPM installs the Vulkan bindings and `antono2.mem` dependencies automatically.
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
 
-The allocator uses [`generic_pool.RangeAllocator`](https://github.com/antono2/memory)
+The allocator uses [`antono2.mem`](https://github.com/antono2/mem),
+specifically `mem.RangeAllocator`,
 for its dependency-free block suballocation policy. Vulkan handles remain
 isolated in this module.
 
@@ -129,6 +130,8 @@ Slices are strictly FIFO and never cross the end of the buffer. Retirement is
 rejected when attempted out of order. The caller owns submission tracking and
 must not retire a slice until the GPU has finished reading it. Call
 `uploads.destroy()` before destroying the allocator or Vulkan device.
+`uploads.stats()` returns `UploadRingStats`, keeping this module's public API
+independent of the internal allocation-policy type.
 
 ## Memory classes
 
@@ -146,8 +149,8 @@ must not retire a slice until the GPU has finished reading it. Call
   contain many suballocations.
 - The allocator is not internally synchronized. Externally synchronize access
   when multiple threads can allocate or free concurrently.
-- Do not map two allocations sharing one memory block concurrently; Vulkan
-  permits a device-memory object to be mapped only once at a time.
+- Concurrently mapped allocations in one shared block reuse a single underlying
+  Vulkan mapping. Each successful `map()` must have a matching `unmap()`.
 - The allocator does not relocate live resources, enforce heap budgets, choose
   between equivalent heaps, or automatically flush non-coherent memory.
 - Vulkan objects must not outlive the memory bound to them.

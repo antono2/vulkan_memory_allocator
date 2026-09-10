@@ -1,17 +1,31 @@
 module vkmemalloc
 
-import generic_pool
+import antono2.mem
 import antono2.vulkan as vk
 
 // UploadSlice identifies one persistently mapped staging-buffer range. Slices
 // must be retired in allocation order after the GPU no longer reads them.
 pub struct UploadSlice {
 	owner      voidptr
-	allocation generic_pool.RingAllocation
+	allocation mem.RingAllocation
 pub:
 	offset u64
 	size   u64
 	data   voidptr
+}
+
+// UploadRingStats describes current payload, alignment/wrap padding, free
+// space, and peak occupancy without exposing the underlying policy type.
+pub struct UploadRingStats {
+pub:
+	capacity                u64
+	used                    u64
+	payload                 u64
+	padding                 u64
+	free                    u64
+	peak_used               u64
+	allocation_count        int
+	largest_contiguous_free u64
 }
 
 // UploadRing owns one dedicated, persistently mapped Vulkan staging buffer and
@@ -23,8 +37,8 @@ pub:
 mut:
 	allocator &Allocator = unsafe { nil }
 	backing   AllocationInfo
-	mapped    voidptr                     = unsafe { nil }
-	ranges    &generic_pool.RingAllocator = unsafe { nil }
+	mapped    voidptr            = unsafe { nil }
+	ranges    &mem.RingAllocator = unsafe { nil }
 	destroyed bool
 }
 
@@ -63,7 +77,7 @@ pub fn new_upload_ring(mut allocator Allocator, capacity u64) !&UploadRing {
 		allocator: allocator
 		backing:   backing
 		mapped:    mapped
-		ranges:    generic_pool.new_ring_allocator(capacity)
+		ranges:    mem.new_ring_allocator(capacity)
 	}
 }
 
@@ -104,11 +118,21 @@ pub fn (mut ring UploadRing) retire(slice UploadSlice) bool {
 }
 
 // stats returns current payload, padding, free-space, and peak ring occupancy.
-pub fn (ring &UploadRing) stats() generic_pool.RingStats {
+pub fn (ring &UploadRing) stats() UploadRingStats {
 	if ring.destroyed {
-		return generic_pool.RingStats{}
+		return UploadRingStats{}
 	}
-	return ring.ranges.stats()
+	stats := ring.ranges.stats()
+	return UploadRingStats{
+		capacity:                stats.capacity
+		used:                    stats.used
+		payload:                 stats.payload
+		padding:                 stats.padding
+		free:                    stats.free
+		peak_used:               stats.peak_used
+		allocation_count:        stats.allocation_count
+		largest_contiguous_free: stats.largest_contiguous_free
+	}
 }
 
 // destroy invalidates all slices, unmaps and destroys the buffer, and releases

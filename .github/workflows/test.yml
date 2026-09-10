@@ -26,9 +26,9 @@ jobs:
           path: source/modules/antono2/vulkan
       - uses: actions/checkout@v7
         with:
-          repository: antono2/memory
-          ref: v0.2.0
-          path: source/modules/generic_pool
+          repository: antono2/mem
+          ref: v1.0.3
+          path: source/modules/antono2/mem
       - uses: prantlf/setup-v-action@v4
       - name: Install Vulkan development library
         run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev mesa-vulkan-drivers

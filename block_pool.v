@@ -1,11 +1,11 @@
 module vkmemalloc
 
-import generic_pool
+import antono2.mem
 
 struct BlockReservation {
 	owner      voidptr
 	block_id   u64
-	allocation generic_pool.RangeAllocation
+	allocation mem.RangeAllocation
 pub:
 	memory_type u32
 	offset      u64
@@ -17,7 +17,7 @@ struct MemoryBlock {
 	memory_type u32
 	capacity    u64
 	dedicated   bool
-	ranges      &generic_pool.RangeAllocator @[required]
+	ranges      &mem.RangeAllocator @[required]
 }
 
 struct BlockPoolStats {
@@ -106,7 +106,7 @@ fn (mut pool MemoryBlockPool) add_block_with_policy(memory_type u32, capacity u6
 		memory_type: memory_type
 		capacity:    capacity
 		dedicated:   dedicated
-		ranges:      generic_pool.new_range_allocator(capacity)
+		ranges:      mem.new_range_allocator(capacity)
 	}
 	return id
 }

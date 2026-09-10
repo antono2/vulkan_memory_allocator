@@ -106,12 +106,19 @@ fn run() ! {
 	assert stats.block_count == 1
 	assert stats.allocation_count == 2
 	println('two buffers share one block: committed=${stats.committed}, used=${stats.used}')
-	mut mapped := voidptr(unsafe { nil })
-	require_success(allocator.map(mut second_allocation, &mapped), 'map second staging buffer')!
+	mut first_mapped := voidptr(unsafe { nil })
+	mut second_mapped := voidptr(unsafe { nil })
+	require_success(allocator.map(mut first_allocation, &first_mapped), 'map first staging buffer')!
+	require_success(allocator.map(mut second_allocation, &second_mapped),
+		'map second staging buffer')!
 	unsafe {
-		*(&u8(mapped)) = 42
+		*(&u8(first_mapped)) = 21
+		*(&u8(second_mapped)) = 42
 	}
+	assert usize(second_mapped) - usize(first_mapped) == second_allocation.offset - first_allocation.offset
+	allocator.unmap(mut first_allocation)
 	allocator.unmap(mut second_allocation)
+	println('shared staging suballocations mapped concurrently')
 
 	image_info := vk.ImageCreateInfo{
 		imageType:     ._2d
