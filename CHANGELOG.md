@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
   module and pin it to the immutable v1.0.2 release.
 - Return a local `UploadRingStats` value from `UploadRing.stats()` so the public
   Vulkan API does not expose the underlying policy module's type.
+- Share one reference-counted Vulkan mapping across mapped suballocations in the
+  same block, allowing production consumers to keep multiple staging ranges
+  mapped concurrently.
 
 ## 2.1.1 - 2026-09-10
 

@@ -149,8 +149,8 @@ independent of the internal allocation-policy type.
   contain many suballocations.
 - The allocator is not internally synchronized. Externally synchronize access
   when multiple threads can allocate or free concurrently.
-- Do not map two allocations sharing one memory block concurrently; Vulkan
-  permits a device-memory object to be mapped only once at a time.
+- Concurrently mapped allocations in one shared block reuse a single underlying
+  Vulkan mapping. Each successful `map()` must have a matching `unmap()`.
 - The allocator does not relocate live resources, enforce heap budgets, choose
   between equivalent heaps, or automatically flush non-coherent memory.
 - Vulkan objects must not outlive the memory bound to them.
