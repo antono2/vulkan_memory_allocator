@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Free dedicated allocation blocks immediately on release while retaining
+  reusable shared buffer blocks.
+- Add `UploadRing`, a dedicated persistently mapped staging buffer with aligned
+  FIFO allocation, checked retirement, wraparound, and occupancy statistics.
+
 ## 2.0.0 - 2026-09-10
 
 - Suballocate aligned buffer ranges from reusable, memory-type-specific

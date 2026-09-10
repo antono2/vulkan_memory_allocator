@@ -65,6 +65,15 @@ fn (pool &MemoryBlockPool) block_allocation_count(block_id u64) ?int {
 	return none
 }
 
+fn (pool &MemoryBlockPool) block_is_dedicated(block_id u64) ?bool {
+	for block in pool.blocks {
+		if block.id == block_id {
+			return block.dedicated
+		}
+	}
+	return none
+}
+
 fn (pool &MemoryBlockPool) recommended_block_size(requested_size u64) !u64 {
 	if requested_size == 0 {
 		return error('allocation size must be greater than zero')

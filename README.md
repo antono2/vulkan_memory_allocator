@@ -80,8 +80,9 @@ if !allocator.release(mut allocation) {
 }
 ```
 
-`release()` returns only the range to its existing block so future resources can
-reuse it. Empty blocks remain cached; reclaim them explicitly when appropriate:
+`release()` returns shared-buffer ranges to their existing block so future
+buffers can reuse them. Dedicated allocations are freed immediately. Empty
+shared blocks remain cached; reclaim them explicitly when appropriate:
 
 ```v
 println('released ${allocator.trim_empty_blocks()} empty memory blocks')
@@ -101,6 +102,33 @@ println('committed: ${stats.committed}, used: ${stats.used}, free: ${stats.free}
 
 `committed` is memory obtained through `vkAllocateMemory`; `used` is the sum of
 live resource ranges. Free bytes may be fragmented across blocks.
+
+## Persistent upload ring
+
+`UploadRing` owns one dedicated, persistently mapped, host-coherent staging
+buffer. Each allocation returns both a writable host pointer and the matching
+buffer-relative offset for a transfer command:
+
+```v
+mut uploads := vma.new_upload_ring(mut allocator, 16 * 1024 * 1024) or {
+	panic(err)
+}
+slice := uploads.allocate(4096, 256) or { panic(err) }
+
+unsafe {
+	copy(&u8(slice.data), source.data, source.len)
+}
+// Record a copy from uploads.buffer at slice.offset, submit it, and keep slice.
+
+// After the protecting fence or timeline value has completed:
+retired := uploads.retire(slice)
+assert retired
+```
+
+Slices are strictly FIFO and never cross the end of the buffer. Retirement is
+rejected when attempted out of order. The caller owns submission tracking and
+must not retire a slice until the GPU has finished reading it. Call
+`uploads.destroy()` before destroying the allocator or Vulkan device.
 
 ## Memory classes
 
@@ -136,8 +164,8 @@ v test .
 ```
 
 The runnable example creates two real buffers, verifies that they share a
-memory block, maps one range, creates a dedicated image, and releases and trims
-all backing blocks:
+memory block, maps one range, creates a dedicated image, then exercises a
+persistently mapped upload ring through wraparound and FIFO retirement:
 
 ```sh
 v run examples/buffer_suballocation
