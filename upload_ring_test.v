@@ -1,13 +1,13 @@
 module vkmemalloc
 
-import generic_pool
+import antono2.memory
 
 fn test_upload_ring_returns_aligned_host_pointers_and_wraps() {
 	mut storage := []u8{len: 64}
 	mut uploads := UploadRing{
 		capacity: 64
 		mapped:   storage.data
-		ranges:   generic_pool.new_ring_allocator(64)
+		ranges:   memory.new_ring_allocator(64)
 	}
 	first := uploads.allocate(24, 16) or { panic(err) }
 	second := uploads.allocate(24, 16) or { panic(err) }
@@ -37,12 +37,12 @@ fn test_upload_ring_rejects_foreign_forged_and_destroyed_slices() {
 	mut first_ring := UploadRing{
 		capacity: 32
 		mapped:   first_storage.data
-		ranges:   generic_pool.new_ring_allocator(32)
+		ranges:   memory.new_ring_allocator(32)
 	}
 	mut second_ring := UploadRing{
 		capacity: 32
 		mapped:   second_storage.data
-		ranges:   generic_pool.new_ring_allocator(32)
+		ranges:   memory.new_ring_allocator(32)
 	}
 	allocation := first_ring.allocate(8, 1) or { panic(err) }
 	foreign := second_ring.allocate(8, 1) or { panic(err) }

@@ -15,11 +15,12 @@ enough for examples while avoiding one Vulkan allocation per resource.
 v install antono2.vkmemalloc
 ```
 
-VPM installs the Vulkan bindings and `generic_pool` dependencies automatically.
+VPM installs the Vulkan bindings and `antono2.memory` dependencies automatically.
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
 
-The allocator uses [`generic_pool.RangeAllocator`](https://github.com/antono2/memory)
+The allocator uses [`antono2.memory`](https://github.com/antono2/memory),
+specifically `memory.RangeAllocator`,
 for its dependency-free block suballocation policy. Vulkan handles remain
 isolated in this module.
 
@@ -129,6 +130,8 @@ Slices are strictly FIFO and never cross the end of the buffer. Retirement is
 rejected when attempted out of order. The caller owns submission tracking and
 must not retire a slice until the GPU has finished reading it. Call
 `uploads.destroy()` before destroying the allocator or Vulkan device.
+`uploads.stats()` returns `UploadRingStats`, keeping this module's public API
+independent of the internal allocation-policy type.
 
 ## Memory classes
 
