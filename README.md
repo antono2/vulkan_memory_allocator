@@ -15,12 +15,12 @@ enough for examples while avoiding one Vulkan allocation per resource.
 v install antono2.vkmemalloc
 ```
 
-VPM installs the Vulkan bindings and `antono2.mem` dependencies automatically.
+VPM installs the Vulkan bindings and `antono2.memory` dependencies automatically.
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
 
-The allocator uses [`antono2.mem`](https://github.com/antono2/mem),
-specifically `mem.RangeAllocator`,
+The allocator uses [`antono2.memory`](https://github.com/antono2/memory),
+specifically `memory.RangeAllocator`,
 for its dependency-free block suballocation policy. Vulkan handles remain
 isolated in this module.
 
