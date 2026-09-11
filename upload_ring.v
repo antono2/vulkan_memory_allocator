@@ -1,13 +1,13 @@
 module vkmemalloc
 
-import antono2.mem
+import antono2.memory
 import antono2.vulkan as vk
 
 // UploadSlice identifies one persistently mapped staging-buffer range. Slices
 // must be retired in allocation order after the GPU no longer reads them.
 pub struct UploadSlice {
 	owner      voidptr
-	allocation mem.RingAllocation
+	allocation memory.RingAllocation
 pub:
 	offset u64
 	size   u64
@@ -37,8 +37,8 @@ pub:
 mut:
 	allocator &Allocator = unsafe { nil }
 	backing   AllocationInfo
-	mapped    voidptr            = unsafe { nil }
-	ranges    &mem.RingAllocator = unsafe { nil }
+	mapped    voidptr               = unsafe { nil }
+	ranges    &memory.RingAllocator = unsafe { nil }
 	destroyed bool
 }
 
@@ -77,7 +77,7 @@ pub fn new_upload_ring(mut allocator Allocator, capacity u64) !&UploadRing {
 		allocator: allocator
 		backing:   backing
 		mapped:    mapped
-		ranges:    mem.new_ring_allocator(capacity)
+		ranges:    memory.new_ring_allocator(capacity)
 	}
 }
 
