@@ -69,6 +69,11 @@ fn test_allocator_release_returns_only_the_suballocated_range() {
 	assert before.allocation_count == 2
 	assert before.committed == 64
 	assert before.used == 32
+	assert before.free_range_count == 1
+	assert before.largest_free_range == 32
+	assert before.empty_block_count == 0
+	assert allocator.stats_for_memory_type(4) == before
+	assert allocator.stats_for_memory_type(99) == AllocatorStats{}
 
 	first_released := allocator.release(mut first)
 	assert first_released
@@ -79,10 +84,17 @@ fn test_allocator_release_returns_only_the_suballocated_range() {
 	assert after.allocation_count == 1
 	assert after.used == 16
 	assert after.free == 48
+	assert after.free_range_count == 2
+	assert after.largest_free_range == 32
+	assert after.empty_block_count == 0
 
 	second_released := allocator.release(mut second)
 	assert second_released
-	assert allocator.stats().allocation_count == 0
+	final_stats := allocator.stats()
+	assert final_stats.allocation_count == 0
+	assert final_stats.free_range_count == 1
+	assert final_stats.largest_free_range == 64
+	assert final_stats.empty_block_count == 1
 }
 
 fn test_allocator_rejects_forged_public_allocation_fields() {

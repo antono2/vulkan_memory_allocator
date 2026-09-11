@@ -42,6 +42,22 @@ fn test_block_pool_suballocates_by_memory_type_and_alignment() {
 	assert stats.committed == 128
 	assert stats.used == 37
 	assert stats.free == 91
+	assert stats.free_range_count == 3
+	assert stats.largest_free_range == 56
+	assert stats.empty_block_count == 0
+
+	device_stats := pool.stats_for_memory_type(2)
+	assert device_stats.block_count == 1
+	assert device_stats.allocation_count == 2
+	assert device_stats.committed == 64
+	assert device_stats.used == 29
+	assert device_stats.free == 35
+	assert device_stats.free_range_count == 2
+	assert device_stats.largest_free_range == 32
+	assert device_stats.empty_block_count == 0
+
+	missing_stats := pool.stats_for_memory_type(99)
+	assert missing_stats == BlockPoolStats{}
 }
 
 fn test_block_pool_reports_exhaustion_without_mutation() {
@@ -140,4 +156,7 @@ fn test_block_pool_reuses_coalesced_space_deterministically() {
 	assert stats.allocation_count == 0
 	assert stats.used == 0
 	assert stats.free == 256
+	assert stats.free_range_count == 1
+	assert stats.largest_free_range == 256
+	assert stats.empty_block_count == 1
 }

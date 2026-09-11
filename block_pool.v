@@ -21,11 +21,14 @@ struct MemoryBlock {
 }
 
 struct BlockPoolStats {
-	block_count      int
-	allocation_count int
-	committed        u64
-	used             u64
-	free             u64
+	block_count        int
+	allocation_count   int
+	committed          u64
+	used               u64
+	free               u64
+	free_range_count   int
+	largest_free_range u64
+	empty_block_count  int
 }
 
 // MemoryBlockPool plans suballocations without owning Vulkan handles. Keeping
@@ -212,20 +215,47 @@ fn (mut pool MemoryBlockPool) remove_empty_block(block_id u64) bool {
 }
 
 fn (pool &MemoryBlockPool) stats() BlockPoolStats {
+	return pool.collect_stats(0, false)
+}
+
+fn (pool &MemoryBlockPool) stats_for_memory_type(memory_type u32) BlockPoolStats {
+	return pool.collect_stats(memory_type, true)
+}
+
+fn (pool &MemoryBlockPool) collect_stats(memory_type u32, filter_by_memory_type bool) BlockPoolStats {
+	mut block_count := 0
 	mut allocation_count := 0
 	mut committed := u64(0)
 	mut used := u64(0)
+	mut free_range_count := 0
+	mut largest_free_range := u64(0)
+	mut empty_block_count := 0
 	for block in pool.blocks {
-		allocation_count += block.ranges.allocation_count()
+		if filter_by_memory_type && block.memory_type != memory_type {
+			continue
+		}
+		block_count++
+		range_stats := block.ranges.stats()
+		allocation_count += range_stats.allocation_count
 		committed += block.capacity
-		used += block.ranges.used_bytes()
+		used += range_stats.used
+		free_range_count += range_stats.free_range_count
+		if range_stats.largest_free_range > largest_free_range {
+			largest_free_range = range_stats.largest_free_range
+		}
+		if range_stats.allocation_count == 0 {
+			empty_block_count++
+		}
 	}
 	return BlockPoolStats{
-		block_count:      pool.blocks.len
-		allocation_count: allocation_count
-		committed:        committed
-		used:             used
-		free:             committed - used
+		block_count:        block_count
+		allocation_count:   allocation_count
+		committed:          committed
+		used:               used
+		free:               committed - used
+		free_range_count:   free_range_count
+		largest_free_range: largest_free_range
+		empty_block_count:  empty_block_count
 	}
 }
 

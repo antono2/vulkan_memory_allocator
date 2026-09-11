@@ -554,14 +554,19 @@ pub fn (mut a Allocator) trim_empty_blocks() int {
 	return removed
 }
 
-// AllocatorStats reports Vulkan block commitment and live suballocation use.
+// AllocatorStats reports Vulkan block commitment, live suballocation use, and
+// free-range fragmentation. largest_free_range is the largest raw contiguous
+// range and does not account for the alignment of a future request.
 pub struct AllocatorStats {
 pub:
-	block_count      int
-	allocation_count int
-	committed        u64
-	used             u64
-	free             u64
+	block_count        int
+	allocation_count   int
+	committed          u64
+	used               u64
+	free               u64
+	free_range_count   int
+	largest_free_range u64
+	empty_block_count  int
 }
 
 // stats returns current Vulkan commitment and suballocation occupancy.
@@ -571,11 +576,34 @@ pub fn (a &Allocator) stats() AllocatorStats {
 	}
 	stats := a.planner.stats()
 	return AllocatorStats{
-		block_count:      stats.block_count
-		allocation_count: stats.allocation_count
-		committed:        stats.committed
-		used:             stats.used
-		free:             stats.free
+		block_count:        stats.block_count
+		allocation_count:   stats.allocation_count
+		committed:          stats.committed
+		used:               stats.used
+		free:               stats.free
+		free_range_count:   stats.free_range_count
+		largest_free_range: stats.largest_free_range
+		empty_block_count:  stats.empty_block_count
+	}
+}
+
+// stats_for_memory_type returns commitment, occupancy, and fragmentation for
+// one Vulkan memory-type index. Use this instead of global stats when
+// diagnosing whether compatible blocks can satisfy a resource request.
+pub fn (a &Allocator) stats_for_memory_type(memory_type u32) AllocatorStats {
+	if isnil(a.planner) {
+		return AllocatorStats{}
+	}
+	stats := a.planner.stats_for_memory_type(memory_type)
+	return AllocatorStats{
+		block_count:        stats.block_count
+		allocation_count:   stats.allocation_count
+		committed:          stats.committed
+		used:               stats.used
+		free:               stats.free
+		free_range_count:   stats.free_range_count
+		largest_free_range: stats.largest_free_range
+		empty_block_count:  stats.empty_block_count
 	}
 }
 

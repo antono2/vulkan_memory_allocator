@@ -99,10 +99,30 @@ stats := allocator.stats()
 println('blocks: ${stats.block_count}')
 println('allocations: ${stats.allocation_count}')
 println('committed: ${stats.committed}, used: ${stats.used}, free: ${stats.free}')
+println('largest free range: ${stats.largest_free_range}')
 ```
 
 `committed` is memory obtained through `vkAllocateMemory`; `used` is the sum of
-live resource ranges. Free bytes may be fragmented across blocks.
+live resource ranges. `free_range_count`, `largest_free_range`, and
+`empty_block_count` make cached capacity and external fragmentation visible.
+The largest range is measured before applying the alignment of a future
+request, so it is diagnostic rather than a guarantee that an allocation will
+succeed.
+
+Global free space can also belong to an incompatible Vulkan memory type. When
+diagnosing a failed request, inspect the type selected for a comparable
+allocation:
+
+```v
+type_stats := allocator.stats_for_memory_type(allocation.mem_type)
+println('type ${allocation.mem_type}: free=${type_stats.free}, largest=${type_stats.largest_free_range}')
+```
+
+If total compatible free space is large enough but its largest range is too
+small, the existing blocks are externally fragmented. If an empty block is
+reported, `trim_empty_blocks()` can return it to Vulkan before retrying another
+memory class. The allocator may still create a new compatible block when its
+configured block limit and the Vulkan device allow it.
 
 ## Persistent upload ring
 

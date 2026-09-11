@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.3.1 - 2026-09-11
+
+- Expose global and per-memory-type free-range, largest-contiguous-range, and
+  empty-block diagnostics without changing allocation policy.
+
 ## 2.3.0 - 2026-09-11
 
 - Migrate the allocation-policy dependency to the canonical `antono2.memory`
