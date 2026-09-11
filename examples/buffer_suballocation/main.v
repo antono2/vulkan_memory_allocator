@@ -105,7 +105,10 @@ fn run() ! {
 	stats := allocator.stats()
 	assert stats.block_count == 1
 	assert stats.allocation_count == 2
-	println('two buffers share one block: committed=${stats.committed}, used=${stats.used}')
+	type_stats := allocator.stats_for_memory_type(first_allocation.mem_type)
+	assert type_stats == stats
+	assert type_stats.largest_free_range <= type_stats.free
+	println('two buffers share one block: committed=${stats.committed}, used=${stats.used}, largest_free_range=${type_stats.largest_free_range}')
 	mut first_mapped := voidptr(unsafe { nil })
 	mut second_mapped := voidptr(unsafe { nil })
 	require_success(allocator.map(mut first_allocation, &first_mapped), 'map first staging buffer')!
