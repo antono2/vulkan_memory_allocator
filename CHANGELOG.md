@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.5.0 - 2026-09-12
+
+- Add cumulative allocation, fallback, block-reuse, trim, and high-water-mark
+  counters alongside current allocator statistics.
+- Add an opt-in bounded lifecycle event trace with deterministic sequence
+  numbers, chronological snapshots, overwrite accounting, and resettable
+  measurement windows.
+- Add a 30,000-operation deterministic block-planner workload that continuously
+  verifies ownership, overlap, accounting, memory-type isolation, and complete
+  coalescing.
+- Extend the lavapipe integration example with 1,536 real Vulkan buffer
+  allocations, mapped writes, flushes, fragmented reuse, and trace validation.
+- Keep tracing disabled by default and retain the allocator's existing external
+  synchronization contract.
+
 ## 2.4.0 - 2026-09-12
 
 - Add explainable, deterministic memory-type ranking for GPU-only, upload,

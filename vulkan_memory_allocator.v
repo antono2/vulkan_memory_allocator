@@ -9,6 +9,7 @@ pub struct Allocator {
 	create_info            AllocatorCreateInfo
 	api_version            u32
 	non_coherent_atom_size u64
+	event_trace_capacity   int
 mut:
 	props                  vk.PhysicalDeviceMemoryProperties
 	planner                &MemoryBlockPool = unsafe { nil }
@@ -20,6 +21,14 @@ mut:
 	memory_budget_reported bool
 	heap_budgets           []u64
 	heap_usages            []u64
+	counters_              AllocatorCounterState
+	events                 []AllocatorEvent
+	event_cursor           int
+	next_event_sequence    u64 = 1
+	dropped_event_count    u64
+	diagnostic_live_count  int
+	diagnostic_live_used   u64
+	diagnostic_committed   u64
 }
 
 fn (a &Allocator) has_free_slot() bool {
@@ -121,8 +130,9 @@ pub mut:
 	// Total size of the VkDeviceMemory block containing this allocation.
 	block_size u64
 mut:
-	reservation BlockReservation
-	mapped      bool
+	reservation   BlockReservation
+	mapped        bool
+	created_block bool
 }
 
 pub struct MemNode {
@@ -143,6 +153,9 @@ pub mut:
 	// Enable VK_EXT_memory_budget property queries. Set this only when the
 	// physical device reports support and the device extension is enabled.
 	memory_budget_enabled bool
+	// Retain this many recent allocation/release/trim events. Zero (the
+	// default) disables the trace; cumulative diagnostics remain available.
+	event_trace_capacity int
 }
 
 // new creates a Vulkan allocator with memory-type-specific shared blocks.
@@ -177,6 +190,16 @@ pub fn new(create_info AllocatorCreateInfo) Allocator {
 			u64(1)
 		}
 		planner:                planner
+		event_trace_capacity:   if create_info.event_trace_capacity > 0 {
+			create_info.event_trace_capacity
+		} else {
+			0
+		}
+		events:                 []AllocatorEvent{cap: if create_info.event_trace_capacity > 0 {
+			create_info.event_trace_capacity
+		} else {
+			0
+		}}
 	}
 	if create_info.memory_budget_enabled {
 		_ = allocator.refresh_memory_budget()
@@ -234,7 +257,8 @@ fn (mut a Allocator) allocate_with_policy(mut req vk.MemoryRequirements, type Me
 		// device-local memory after a staging allocation fails is invalid and
 		// previously led to a null mapped pointer and a delayed segfault.
 		eprintln('No compatible Vulkan memory type: type bits 0x${req.memoryTypeBits:08x}, required flags 0x${u32(mem_type):08x}')
-		return .error_feature_not_present
+		return a.allocate_from_choices(mut req, [], allocation_pnext, dedicated, .ignore, mut
+			alloc_info)
 	}
 	choices := ranked_memory_types(a.props, u32(1) << memory_type, req.size, AllocationOptions{
 		budget_policy: .ignore
@@ -256,26 +280,40 @@ fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choice
 	// `alloc_info` is the caller's output record. Reset and populate that record
 	// directly so callers always receive the actual tracked handle.
 	alloc_info = AllocationInfo{}
+	a.begin_allocation(req.size)
 	if req.size == 0 || req.alignment == 0 {
-		return .error_initialization_failed
+		result := vk.Result.error_initialization_failed
+		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated)
+		return result
 	}
 	if isnil(a.planner) {
-		return .error_initialization_failed
+		result := vk.Result.error_initialization_failed
+		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated)
+		return result
 	}
 	if choices.len == 0 {
-		return .error_feature_not_present
+		result := vk.Result.error_feature_not_present
+		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated)
+		return result
 	}
 	mut last_result := vk.Result.error_out_of_device_memory
-	for choice in choices {
+	mut last_memory_type := max_u32
+	mut last_heap_index := max_u32
+	for choice_index, choice in choices {
+		last_memory_type = choice.index
+		last_heap_index = choice.heap_index
 		allow_new_block := budget_policy != .require_within || choice.within_budget
+		a.note_memory_type_attempt(choice_index > 0)
 		mut result := a.allocate_for_memory_type(mut req, choice, allocation_pnext, dedicated,
 			allow_new_block, budget_policy, mut alloc_info)
 		if result == .success {
+			a.note_allocation_success(alloc_info, dedicated)
 			return .success
 		}
 		last_result = result
 		if result !in [.error_out_of_device_memory, .error_out_of_host_memory,
 			.error_too_many_objects] {
+			a.note_allocation_failure(result, req.size, choice.index, choice.heap_index, dedicated)
 			return result
 		}
 		mut trimmed := 0
@@ -288,17 +326,22 @@ fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choice
 			}
 		}
 		if trimmed > 0 {
+			a.counters_.trim_retry_attempts++
+			a.note_memory_type_attempt(choice_index > 0)
 			result = a.allocate_for_memory_type(mut req, choice, allocation_pnext, dedicated, true,
 				budget_policy, mut alloc_info)
 			if result == .success {
+				a.note_allocation_success(alloc_info, dedicated)
 				return .success
 			}
 			last_result = result
 		}
 		if result == .error_too_many_objects {
+			a.note_allocation_failure(result, req.size, choice.index, choice.heap_index, dedicated)
 			return result
 		}
 	}
+	a.note_allocation_failure(last_result, req.size, last_memory_type, last_heap_index, dedicated)
 	return last_result
 }
 
@@ -310,6 +353,8 @@ fn (mut a Allocator) allocate_for_memory_type(mut req vk.MemoryRequirements, cho
 				return .error_initialization_failed
 			}
 			a.populate_allocation(mut alloc_info, memory, reservation)
+			alloc_info.created_block = false
+			a.counters_.block_reuses++
 			return .success
 		}
 	}
@@ -365,6 +410,8 @@ fn (mut a Allocator) allocate_for_memory_type(mut req vk.MemoryRequirements, cho
 		return .error_out_of_device_memory
 	}
 	a.populate_allocation(mut alloc_info, memory, reservation)
+	alloc_info.created_block = true
+	a.counters_.block_allocations++
 	return .success
 }
 
@@ -730,6 +777,7 @@ pub fn (mut a Allocator) release(mut alloc_info AllocationInfo) bool {
 	if !a.planner.release(alloc_info.reservation) {
 		return false
 	}
+	released_info := alloc_info
 	if dedicated {
 		memory := a.memory_for_block(block_id) or { return false }
 		if !a.planner.remove_empty_block(block_id) {
@@ -737,7 +785,9 @@ pub fn (mut a Allocator) release(mut alloc_info AllocationInfo) bool {
 		}
 		_ = a.forget_block(block_id) or { return false }
 		vk.free_memory(a.create_info.device, memory, unsafe { nil })
+		a.counters_.block_frees++
 	}
+	a.note_allocation_release(released_info, dedicated)
 	alloc_info = AllocationInfo{}
 	return true
 }
@@ -786,6 +836,15 @@ fn (mut a Allocator) trim_empty_blocks_filtered(heap_index u32, filter_by_heap b
 			index++
 			continue
 		}
+		block_size := a.planner.block_capacity(block_id) or {
+			index++
+			continue
+		}
+		heap := if memory_type < a.props.memoryTypeCount {
+			a.props.memoryTypes[memory_type].heapIndex
+		} else {
+			max_u32
+		}
 		if !a.planner.remove_empty_block(block_id) {
 			index++
 			continue
@@ -797,6 +856,7 @@ fn (mut a Allocator) trim_empty_blocks_filtered(heap_index u32, filter_by_heap b
 			return removed
 		}
 		vk.free_memory(a.create_info.device, memory, unsafe { nil })
+		a.note_block_trimmed(memory_type, heap, block_size)
 		removed++
 	}
 	return removed
@@ -865,11 +925,15 @@ pub fn (mut a Allocator) destroy() {
 				a.map_refs[i] = 0
 			}
 			vk.free_memory(a.create_info.device, a.pools[i], unsafe { nil })
+			a.counters_.block_frees++
 			a.pools[i] = unsafe { nil }
 			a.block_ids[i] = 0
 		}
 	}
 	a.pool_size = 0
+	a.diagnostic_live_count = 0
+	a.diagnostic_live_used = 0
+	a.diagnostic_committed = 0
 	if !isnil(a.planner) {
 		a.planner = new_memory_block_pool(a.planner.default_block_size, a.planner.max_blocks) or {
 			unsafe { nil }
