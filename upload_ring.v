@@ -64,6 +64,45 @@ pub fn new_upload_ring(mut allocator Allocator, capacity u64) !&UploadRing {
 	if result != .success {
 		return error('could not create upload buffer: ${result}')
 	}
+	return finish_upload_ring(mut allocator, capacity, buffer, backing)
+}
+
+// new_upload_ring_with_options creates an upload ring with policy-selected
+// host-visible memory. Prefer usage .upload; callers using a non-coherent type
+// must flush each written slice before device access.
+pub fn new_upload_ring_with_options(mut allocator Allocator, capacity u64, options AllocationOptions) !&UploadRing {
+	if capacity == 0 {
+		return error('upload ring capacity must be greater than zero')
+	}
+	$if x32 {
+		if capacity > u64(max_u32) {
+			return error('upload ring capacity exceeds the host address space')
+		}
+	}
+	buffer_info := vk.BufferCreateInfo{
+		size:        capacity
+		usage:       u32(vk.BufferUsageFlagBits.transfer_src)
+		sharingMode: .exclusive
+	}
+	effective_options := AllocationOptions{
+		usage:           options.usage
+		required_flags:  options.required_flags | memory_flag(.host_visible)
+		preferred_flags: options.preferred_flags
+		avoided_flags:   options.avoided_flags
+		budget_policy:   options.budget_policy
+	}
+	mut buffer := vk.Buffer(unsafe { nil })
+	mut backing := AllocationInfo{}
+	result := allocator.create_dedicated_buffer_with_options(&buffer_info, effective_options,
+		&buffer, mut backing)
+	if result != .success {
+		return error('could not create upload buffer: ${result}')
+	}
+	return finish_upload_ring(mut allocator, capacity, buffer, backing)
+}
+
+fn finish_upload_ring(mut allocator Allocator, capacity u64, buffer vk.Buffer, initial_backing AllocationInfo) !&UploadRing {
+	mut backing := initial_backing
 	mut mapped := voidptr(unsafe { nil })
 	map_result := allocator.map(mut backing, &mapped)
 	if map_result != .success {
@@ -115,6 +154,24 @@ pub fn (mut ring UploadRing) retire(slice UploadSlice) bool {
 		return false
 	}
 	return ring.ranges.release(slice.allocation)
+}
+
+// flush makes host writes in a live slice available to the device. It is a
+// no-op for the coherent memory used by new_upload_ring(), but keeps upload
+// code correct if the backing policy changes.
+pub fn (ring &UploadRing) flush(slice UploadSlice) vk.Result {
+	if !ring.contains(slice) {
+		return .error_memory_map_failed
+	}
+	return ring.allocator.flush_range(ring.backing, slice.offset, slice.size)
+}
+
+// invalidate makes device writes in a live slice visible to the host.
+pub fn (ring &UploadRing) invalidate(slice UploadSlice) vk.Result {
+	if !ring.contains(slice) {
+		return .error_memory_map_failed
+	}
+	return ring.allocator.invalidate_range(ring.backing, slice.offset, slice.size)
 }
 
 // stats returns current payload, padding, free-space, and peak ring occupancy.

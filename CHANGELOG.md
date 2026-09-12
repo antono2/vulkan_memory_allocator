@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.4.0 - 2026-09-12
+
+- Add explainable, deterministic memory-type ranking for GPU-only, upload,
+  readback, and automatic usage, with required, preferred, and avoided flags.
+- Add optional `VK_EXT_memory_budget` discovery, refresh, selection policy, and
+  per-heap diagnostics with a portable allocator-commitment fallback.
+- Add policy-based raw, buffer, dedicated-buffer, and image allocation APIs
+  while preserving the existing `MemType` entry points.
+- Retry allocation after trimming empty blocks and fall through to compatible
+  lower-ranked memory types on host/device out-of-memory results.
+- Record the selected heap, property flags, and containing block size in every
+  allocation.
+- Add checked `flush`, `flush_range`, `invalidate`, and `invalidate_range`
+  helpers aligned to the device's `nonCoherentAtomSize`.
+- Add policy-selected upload rings and slice-level flush/invalidate helpers
+  while retaining the coherent default constructor.
+- Document the allocator from a high-level policy/planning/ownership viewpoint
+  and exercise policy selection, live budgets, and flushing with lavapipe.
+
 ## 2.3.2 - 2026-09-12
 
 - Promote the allocation-policy dependency to the production-hardened

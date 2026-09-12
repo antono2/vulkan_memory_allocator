@@ -1,6 +1,7 @@
 module vkmemalloc
 
 import antono2.memory
+import antono2.vulkan as vk
 
 struct BlockReservation {
 	owner      voidptr
@@ -75,6 +76,38 @@ fn (pool &MemoryBlockPool) block_is_dedicated(block_id u64) ?bool {
 		}
 	}
 	return none
+}
+
+fn (pool &MemoryBlockPool) block_capacity(block_id u64) ?u64 {
+	for block in pool.blocks {
+		if block.id == block_id {
+			return block.capacity
+		}
+	}
+	return none
+}
+
+fn (pool &MemoryBlockPool) block_memory_type(block_id u64) ?u32 {
+	for block in pool.blocks {
+		if block.id == block_id {
+			return block.memory_type
+		}
+	}
+	return none
+}
+
+fn (pool &MemoryBlockPool) heap_stats(props &vk.PhysicalDeviceMemoryProperties, heap_index u32) (u64, u64) {
+	mut committed := u64(0)
+	mut used := u64(0)
+	for block in pool.blocks {
+		if block.memory_type >= props.memoryTypeCount
+			|| props.memoryTypes[block.memory_type].heapIndex != heap_index {
+			continue
+		}
+		committed += block.capacity
+		used += block.ranges.stats().used
+	}
+	return committed, used
 }
 
 fn (pool &MemoryBlockPool) recommended_block_size(requested_size u64) !u64 {
