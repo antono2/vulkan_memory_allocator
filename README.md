@@ -19,6 +19,15 @@ VPM installs the Vulkan bindings and `antono2.memory` dependencies automatically
 
 The Vulkan loader, headers, and a working GPU driver must also be installed.
 
+For a fresh machine, install the native Vulkan prerequisites, V dependencies,
+and run the compile checks with one command:
+
+```sh
+v run setup.vsh
+```
+
+Use `v run setup.vsh --check` for a read-only diagnostic pass.
+
 The allocator uses [`antono2.memory`](https://github.com/antono2/memory),
 specifically `memory.RangeAllocator`,
 for its dependency-free block suballocation policy. Vulkan handles remain
