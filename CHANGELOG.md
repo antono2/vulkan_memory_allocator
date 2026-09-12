@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.3.2 - 2026-09-12
+
+- Promote the allocation-policy dependency to the production-hardened
+  `antono2.memory` v1.4.0 release.
+- Validate the pinned memory release in CPU allocator tests and the real
+  lavapipe Vulkan suballocation smoke test.
+
 ## 2.3.1 - 2026-09-11
 
 - Expose global and per-memory-type free-range, largest-contiguous-range, and

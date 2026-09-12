@@ -28,8 +28,9 @@ v run setup.vsh
 
 Use `v run setup.vsh --check` for a read-only diagnostic pass.
 
-The allocator uses [`antono2.memory`](https://github.com/antono2/memory),
-specifically `memory.RangeAllocator`,
+The allocator uses the production-hardened v1.4 release of
+[`antono2.memory`](https://github.com/antono2/memory), specifically
+`memory.RangeAllocator`,
 for its dependency-free block suballocation policy. Vulkan handles remain
 isolated in this module.
 
