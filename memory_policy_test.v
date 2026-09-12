@@ -166,7 +166,7 @@ fn test_require_within_can_reuse_an_over_budget_buffer_block() {
 	}
 	mut allocation := AllocationInfo{}
 	result := allocator.allocate_from_choices(mut requirements, choices, unsafe { nil }, false,
-		options.budget_policy, mut allocation)
+		.buffer, options.budget_policy, mut allocation)
 	assert result == .success
 	assert allocation.memory == voidptr(policy_test_memory(1))
 	assert allocation.block_size == 256

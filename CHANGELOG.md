@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.6.0 - 2026-09-12
+
+- Add explicit `create_suballocated_image()` and
+  `create_suballocated_image_with_options()` APIs while retaining dedicated
+  allocation in the existing image APIs.
+- Separate reusable blocks by Vulkan memory type and resource class so buffers,
+  linear images, and optimal images never share a block or create a
+  `bufferImageGranularity` boundary.
+- Query Vulkan 1.1 dedicated-allocation requirements and honor both required and
+  preferred dedicated memory; conservatively use dedicated memory on Vulkan
+  1.0.
+- Expose the resource class in allocations, events, and class-filtered
+  fragmentation statistics.
+- Reject sparse, disjoint, and DRM-format-modifier images in the ordinary image
+  suballocation path, which cannot provide their specialized binding rules.
+- Add CPU isolation/ownership tests and a lavapipe example proving real optimal
+  image sharing alongside separate linear-image and buffer blocks; run every
+  real Vulkan workload with the Khronos validation layer in CI.
+
 ## 2.5.0 - 2026-09-12
 
 - Add cumulative allocation, fallback, block-reuse, trim, and high-water-mark

@@ -92,6 +92,52 @@ fn test_block_pool_never_reuses_dedicated_blocks() {
 	assert pool.contains(dedicated)
 }
 
+fn test_block_pool_never_mixes_resource_classes() {
+	mut pool := new_memory_block_pool(64, 3) or { panic(err) }
+	buffer_block := pool.add_block_for_class(2, .buffer, 64) or { panic(err) }
+	image_block := pool.add_block_for_class(2, .optimal_image, 64) or { panic(err) }
+
+	buffer := pool.reserve_for_class(2, .buffer, 8, 8) or { panic(err) }
+	first_image := pool.reserve_for_class(2, .optimal_image, 16, 16) or { panic(err) }
+	second_image := pool.reserve_for_class(2, .optimal_image, 8, 8) or { panic(err) }
+
+	assert buffer.block_id == buffer_block
+	assert first_image.block_id == image_block
+	assert second_image.block_id == image_block
+	assert first_image.offset == 0
+	assert second_image.offset == 16
+	assert pool.block_resource_class(buffer_block) or { panic('buffer block should exist') } == .buffer
+	assert pool.block_resource_class(image_block) or { panic('image block should exist') } == .optimal_image
+	if _ := pool.reserve_for_class(2, .linear_image, 8, 1) {
+		assert false, 'linear images must not reuse buffer or optimal-image blocks'
+	} else {
+		assert err.msg().contains('compatible memory block')
+	}
+
+	buffer_stats := pool.stats_for_memory_type_and_class(2, .buffer)
+	assert buffer_stats.block_count == 1
+	assert buffer_stats.allocation_count == 1
+	optimal_stats := pool.stats_for_resource_class(.optimal_image)
+	assert optimal_stats.block_count == 1
+	assert optimal_stats.allocation_count == 2
+	assert pool.stats().block_count == 2
+	assert pool.stats().allocation_count == 3
+}
+
+fn test_block_pool_rejects_a_forged_resource_class() {
+	mut pool := new_memory_block_pool(32, 1) or { panic(err) }
+	_ = pool.add_block_for_class(0, .optimal_image, 32) or { panic(err) }
+	reservation := pool.reserve_for_class(0, .optimal_image, 8, 1) or { panic(err) }
+	forged := BlockReservation{
+		...reservation
+		resource_class: .buffer
+	}
+	assert !pool.contains(forged)
+	assert !pool.release(forged)
+	assert pool.contains(reservation)
+	assert pool.release(reservation)
+}
+
 fn test_block_pool_release_coalesces_and_allows_empty_removal() {
 	mut pool := new_memory_block_pool(32, 2) or { panic(err) }
 	block_id := pool.add_block(3, 32) or { panic(err) }
