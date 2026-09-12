@@ -41,7 +41,7 @@ jobs:
         run: v vet block_pool.v block_pool_test.v upload_ring.v upload_ring_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
       - name: Run allocator tests
         working-directory: source/modules/antono2/vkmemalloc
-        run: v test .
+        run: v run setup.vsh --check
       - name: Run Vulkan suballocation smoke test
         working-directory: source/modules/antono2/vkmemalloc
         run: |
