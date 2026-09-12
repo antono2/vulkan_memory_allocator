@@ -113,6 +113,17 @@ pub enum MemType {
 	first_available
 }
 
+// ResourceClass identifies resources that may safely share one VkDeviceMemory
+// block. The allocator never mixes these classes, so Vulkan's
+// bufferImageGranularity boundary rule cannot be violated inside a block.
+pub enum ResourceClass {
+	// Raw requirements do not identify the resource kind and remain isolated.
+	unknown
+	buffer
+	linear_image
+	optimal_image
+}
+
 pub struct AllocationInfo {
 pub mut:
 	// The memory type index
@@ -121,6 +132,8 @@ pub mut:
 	heap_index u32
 	// Properties of the selected memory type.
 	property_flags vk.MemoryPropertyFlags
+	// Compatibility class of the resource occupying the memory block.
+	resource_class ResourceClass
 	// The memory handle (VkDeviceMemory)
 	memory voidptr = unsafe { nil }
 	// The offset in the memory block
@@ -234,10 +247,10 @@ pub fn (mut a Allocator) get_memory_type(type_bits_param u32, mem_props vk.Memor
 // the resource class needed for safe Vulkan granularity decisions. Prefer
 // create_buffer() to enable compatible buffer suballocation.
 pub fn (mut a Allocator) allocate(mut req vk.MemoryRequirements, type MemType, mut alloc_info AllocationInfo) vk.Result {
-	return a.allocate_with_policy(mut req, type, unsafe { nil }, true, mut alloc_info)
+	return a.allocate_with_policy(mut req, type, unsafe { nil }, true, .unknown, mut alloc_info)
 }
 
-fn (mut a Allocator) allocate_with_policy(mut req vk.MemoryRequirements, type MemType, allocation_pnext voidptr, dedicated bool, mut alloc_info AllocationInfo) vk.Result {
+fn (mut a Allocator) allocate_with_policy(mut req vk.MemoryRequirements, type MemType, allocation_pnext voidptr, dedicated bool, resource_class ResourceClass, mut alloc_info AllocationInfo) vk.Result {
 	mut mem_type := vk.MemoryPropertyFlags(0)
 	match type {
 		.staging {
@@ -257,14 +270,14 @@ fn (mut a Allocator) allocate_with_policy(mut req vk.MemoryRequirements, type Me
 		// device-local memory after a staging allocation fails is invalid and
 		// previously led to a null mapped pointer and a delayed segfault.
 		eprintln('No compatible Vulkan memory type: type bits 0x${req.memoryTypeBits:08x}, required flags 0x${u32(mem_type):08x}')
-		return a.allocate_from_choices(mut req, [], allocation_pnext, dedicated, .ignore, mut
-			alloc_info)
+		return a.allocate_from_choices(mut req, [], allocation_pnext, dedicated, resource_class,
+			.ignore, mut alloc_info)
 	}
 	choices := ranked_memory_types(a.props, u32(1) << memory_type, req.size, AllocationOptions{
 		budget_policy: .ignore
 	}, a.heap_budget_snapshot())
-	return a.allocate_from_choices(mut req, choices, allocation_pnext, dedicated, .ignore, mut
-		alloc_info)
+	return a.allocate_from_choices(mut req, choices, allocation_pnext, dedicated, resource_class,
+		.ignore, mut alloc_info)
 }
 
 // allocate_with_options reserves isolated memory using the portable ranked
@@ -272,28 +285,28 @@ fn (mut a Allocator) allocate_with_policy(mut req vk.MemoryRequirements, type Me
 // desired.
 pub fn (mut a Allocator) allocate_with_options(mut req vk.MemoryRequirements, options AllocationOptions, mut alloc_info AllocationInfo) vk.Result {
 	choices := a.rank_memory_types(req.memoryTypeBits, req.size, options)
-	return a.allocate_from_choices(mut req, choices, unsafe { nil }, true, options.budget_policy, mut
-		alloc_info)
+	return a.allocate_from_choices(mut req, choices, unsafe { nil }, true, .unknown,
+		options.budget_policy, mut alloc_info)
 }
 
-fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choices []MemoryTypeChoice, allocation_pnext voidptr, dedicated bool, budget_policy BudgetPolicy, mut alloc_info AllocationInfo) vk.Result {
+fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choices []MemoryTypeChoice, allocation_pnext voidptr, dedicated bool, resource_class ResourceClass, budget_policy BudgetPolicy, mut alloc_info AllocationInfo) vk.Result {
 	// `alloc_info` is the caller's output record. Reset and populate that record
 	// directly so callers always receive the actual tracked handle.
 	alloc_info = AllocationInfo{}
 	a.begin_allocation(req.size)
 	if req.size == 0 || req.alignment == 0 {
 		result := vk.Result.error_initialization_failed
-		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated)
+		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated, resource_class)
 		return result
 	}
 	if isnil(a.planner) {
 		result := vk.Result.error_initialization_failed
-		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated)
+		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated, resource_class)
 		return result
 	}
 	if choices.len == 0 {
 		result := vk.Result.error_feature_not_present
-		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated)
+		a.note_allocation_failure(result, req.size, max_u32, max_u32, dedicated, resource_class)
 		return result
 	}
 	mut last_result := vk.Result.error_out_of_device_memory
@@ -305,7 +318,7 @@ fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choice
 		allow_new_block := budget_policy != .require_within || choice.within_budget
 		a.note_memory_type_attempt(choice_index > 0)
 		mut result := a.allocate_for_memory_type(mut req, choice, allocation_pnext, dedicated,
-			allow_new_block, budget_policy, mut alloc_info)
+			resource_class, allow_new_block, budget_policy, mut alloc_info)
 		if result == .success {
 			a.note_allocation_success(alloc_info, dedicated)
 			return .success
@@ -313,7 +326,8 @@ fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choice
 		last_result = result
 		if result !in [.error_out_of_device_memory, .error_out_of_host_memory,
 			.error_too_many_objects] {
-			a.note_allocation_failure(result, req.size, choice.index, choice.heap_index, dedicated)
+			a.note_allocation_failure(result, req.size, choice.index, choice.heap_index, dedicated,
+				resource_class)
 			return result
 		}
 		mut trimmed := 0
@@ -328,8 +342,8 @@ fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choice
 		if trimmed > 0 {
 			a.counters_.trim_retry_attempts++
 			a.note_memory_type_attempt(choice_index > 0)
-			result = a.allocate_for_memory_type(mut req, choice, allocation_pnext, dedicated, true,
-				budget_policy, mut alloc_info)
+			result = a.allocate_for_memory_type(mut req, choice, allocation_pnext, dedicated,
+				resource_class, true, budget_policy, mut alloc_info)
 			if result == .success {
 				a.note_allocation_success(alloc_info, dedicated)
 				return .success
@@ -337,17 +351,21 @@ fn (mut a Allocator) allocate_from_choices(mut req vk.MemoryRequirements, choice
 			last_result = result
 		}
 		if result == .error_too_many_objects {
-			a.note_allocation_failure(result, req.size, choice.index, choice.heap_index, dedicated)
+			a.note_allocation_failure(result, req.size, choice.index, choice.heap_index, dedicated,
+				resource_class)
 			return result
 		}
 	}
-	a.note_allocation_failure(last_result, req.size, last_memory_type, last_heap_index, dedicated)
+	a.note_allocation_failure(last_result, req.size, last_memory_type, last_heap_index, dedicated,
+		resource_class)
 	return last_result
 }
 
-fn (mut a Allocator) allocate_for_memory_type(mut req vk.MemoryRequirements, choice MemoryTypeChoice, allocation_pnext voidptr, dedicated bool, allow_new_block bool, budget_policy BudgetPolicy, mut alloc_info AllocationInfo) vk.Result {
+fn (mut a Allocator) allocate_for_memory_type(mut req vk.MemoryRequirements, choice MemoryTypeChoice, allocation_pnext voidptr, dedicated bool, resource_class ResourceClass, allow_new_block bool, budget_policy BudgetPolicy, mut alloc_info AllocationInfo) vk.Result {
 	if !dedicated {
-		if reservation := a.planner.reserve(choice.index, req.size, req.alignment) {
+		if reservation := a.planner.reserve_for_class(choice.index, resource_class, req.size,
+			req.alignment)
+		{
 			memory := a.memory_for_block(reservation.block_id) or {
 				_ = a.planner.release(reservation)
 				return .error_initialization_failed
@@ -384,13 +402,13 @@ fn (mut a Allocator) allocate_for_memory_type(mut req vk.MemoryRequirements, cho
 		return result
 	}
 	block_id := if dedicated {
-		a.planner.add_dedicated_block(choice.index, block_size) or {
+		a.planner.add_dedicated_block_for_class(choice.index, resource_class, block_size) or {
 			vk.free_memory(a.create_info.device, memory, unsafe { nil })
 			alloc_info = AllocationInfo{}
 			return .error_too_many_objects
 		}
 	} else {
-		a.planner.add_block(choice.index, block_size) or {
+		a.planner.add_block_for_class(choice.index, resource_class, block_size) or {
 			vk.free_memory(a.create_info.device, memory, unsafe { nil })
 			alloc_info = AllocationInfo{}
 			return .error_too_many_objects
@@ -418,6 +436,7 @@ fn (mut a Allocator) allocate_for_memory_type(mut req vk.MemoryRequirements, cho
 fn (a &Allocator) populate_allocation(mut alloc_info AllocationInfo, memory vk.DeviceMemory, reservation BlockReservation) {
 	alloc_info.memory = voidptr(memory)
 	alloc_info.mem_type = reservation.memory_type
+	alloc_info.resource_class = reservation.resource_class
 	if reservation.memory_type < a.props.memoryTypeCount {
 		memory_type := a.props.memoryTypes[reservation.memory_type]
 		alloc_info.heap_index = memory_type.heapIndex
@@ -441,7 +460,7 @@ fn (a &Allocator) owns_allocation(alloc_info AllocationInfo) bool {
 			return false
 		}
 	}
-	return voidptr(memory) == alloc_info.memory && alloc_info.offset == alloc_info.reservation.offset && alloc_info.size == alloc_info.reservation.size && alloc_info.mem_type == alloc_info.reservation.memory_type && alloc_info.block_size == (a.planner.block_capacity(alloc_info.reservation.block_id) or {
+	return voidptr(memory) == alloc_info.memory && alloc_info.offset == alloc_info.reservation.offset && alloc_info.size == alloc_info.reservation.size && alloc_info.mem_type == alloc_info.reservation.memory_type && alloc_info.resource_class == alloc_info.reservation.resource_class && alloc_info.block_size == (a.planner.block_capacity(alloc_info.reservation.block_id) or {
 		return false
 	})
 }
@@ -450,8 +469,8 @@ fn (mut a Allocator) allocate_buffer_memory(buffer vk.Buffer, type MemType, forc
 	if a.api_version < vk.api_version_1_1 {
 		mut requirements := vk.MemoryRequirements{}
 		vk.get_buffer_memory_requirements(a.create_info.device, buffer, mut requirements)
-		return a.allocate_with_policy(mut requirements, type, unsafe { nil }, force_dedicated, mut
-			alloc_info)
+		return a.allocate_with_policy(mut requirements, type, unsafe { nil }, force_dedicated,
+			.buffer, mut alloc_info)
 	}
 	mut dedicated_requirements := vk.MemoryDedicatedRequirements{}
 	mut requirements := vk.MemoryRequirements2{
@@ -465,13 +484,13 @@ fn (mut a Allocator) allocate_buffer_memory(buffer vk.Buffer, type MemType, forc
 		|| dedicated_requirements.prefersDedicatedAllocation == vk._true
 	if !dedicated {
 		return a.allocate_with_policy(mut requirements.memoryRequirements, type, unsafe { nil },
-			false, mut alloc_info)
+			false, .buffer, mut alloc_info)
 	}
 	dedicated_info := vk.MemoryDedicatedAllocateInfo{
 		buffer: buffer
 	}
 	return a.allocate_with_policy(mut requirements.memoryRequirements, type,
-		voidptr(&dedicated_info), true, mut alloc_info)
+		voidptr(&dedicated_info), true, .buffer, mut alloc_info)
 }
 
 fn (mut a Allocator) allocate_buffer_memory_with_options(buffer vk.Buffer, options AllocationOptions, force_dedicated bool, mut alloc_info AllocationInfo) vk.Result {
@@ -484,7 +503,7 @@ fn (mut a Allocator) allocate_buffer_memory_with_options(buffer vk.Buffer, optio
 			a.rank_buffer_memory_types(requirements.memoryTypeBits, requirements.size, options)
 		}
 		return a.allocate_from_choices(mut requirements, choices, unsafe { nil }, force_dedicated,
-			options.budget_policy, mut alloc_info)
+			.buffer, options.budget_policy, mut alloc_info)
 	}
 	mut dedicated_requirements := vk.MemoryDedicatedRequirements{}
 	mut requirements := vk.MemoryRequirements2{
@@ -505,54 +524,167 @@ fn (mut a Allocator) allocate_buffer_memory_with_options(buffer vk.Buffer, optio
 	}
 	if !dedicated {
 		return a.allocate_from_choices(mut requirements.memoryRequirements, choices,
-			unsafe { nil }, false, options.budget_policy, mut alloc_info)
+			unsafe { nil }, false, .buffer, options.budget_policy, mut alloc_info)
 	}
 	dedicated_info := vk.MemoryDedicatedAllocateInfo{
 		buffer: buffer
 	}
 	return a.allocate_from_choices(mut requirements.memoryRequirements, choices,
-		voidptr(&dedicated_info), true, options.budget_policy, mut alloc_info)
+		voidptr(&dedicated_info), true, .buffer, options.budget_policy, mut alloc_info)
 }
 
-fn (mut a Allocator) allocate_image_memory(image vk.Image, type MemType, mut alloc_info AllocationInfo) vk.Result {
-	mut requirements := vk.MemoryRequirements{}
-	if a.api_version >= vk.api_version_1_1 {
-		mut requirements2 := vk.MemoryRequirements2{}
-		info := vk.ImageMemoryRequirementsInfo2{
-			image: image
-		}
-		vk.get_image_memory_requirements2(a.create_info.device, &info, mut requirements2)
-		requirements = requirements2.memoryRequirements
-		dedicated_info := vk.MemoryDedicatedAllocateInfo{
-			image: image
-		}
-		return a.allocate_with_policy(mut requirements, type, voidptr(&dedicated_info), true, mut
+fn (mut a Allocator) allocate_image_memory(image vk.Image, type MemType, resource_class ResourceClass, force_dedicated bool, mut alloc_info AllocationInfo) vk.Result {
+	if a.api_version < vk.api_version_1_1 {
+		mut requirements := vk.MemoryRequirements{}
+		vk.get_image_memory_requirements(a.create_info.device, image, mut requirements)
+		// Vulkan 1.0 cannot query the core dedicated-allocation requirements.
+		// Keep the explicit suballocation API conservative on these devices.
+		return a.allocate_with_policy(mut requirements, type, unsafe { nil }, true, resource_class, mut
 			alloc_info)
 	}
-	vk.get_image_memory_requirements(a.create_info.device, image, mut requirements)
-	return a.allocate_with_policy(mut requirements, type, unsafe { nil }, true, mut alloc_info)
+	mut dedicated_requirements := vk.MemoryDedicatedRequirements{}
+	mut requirements := vk.MemoryRequirements2{
+		pNext: &dedicated_requirements
+	}
+	info := vk.ImageMemoryRequirementsInfo2{
+		image: image
+	}
+	vk.get_image_memory_requirements2(a.create_info.device, &info, mut requirements)
+	dedicated := force_dedicated || dedicated_requirements.requiresDedicatedAllocation == vk._true
+		|| dedicated_requirements.prefersDedicatedAllocation == vk._true
+	if !dedicated {
+		return a.allocate_with_policy(mut requirements.memoryRequirements, type, unsafe { nil },
+			false, resource_class, mut alloc_info)
+	}
+	dedicated_info := vk.MemoryDedicatedAllocateInfo{
+		image: image
+	}
+	return a.allocate_with_policy(mut requirements.memoryRequirements, type,
+		voidptr(&dedicated_info), true, resource_class, mut alloc_info)
 }
 
-fn (mut a Allocator) allocate_image_memory_with_options(image vk.Image, options AllocationOptions, mut alloc_info AllocationInfo) vk.Result {
-	mut requirements := vk.MemoryRequirements{}
-	if a.api_version >= vk.api_version_1_1 {
-		mut requirements2 := vk.MemoryRequirements2{}
-		info := vk.ImageMemoryRequirementsInfo2{
-			image: image
-		}
-		vk.get_image_memory_requirements2(a.create_info.device, &info, mut requirements2)
-		requirements = requirements2.memoryRequirements
+fn (mut a Allocator) allocate_image_memory_with_options(image vk.Image, options AllocationOptions, resource_class ResourceClass, force_dedicated bool, mut alloc_info AllocationInfo) vk.Result {
+	if a.api_version < vk.api_version_1_1 {
+		mut requirements := vk.MemoryRequirements{}
+		vk.get_image_memory_requirements(a.create_info.device, image, mut requirements)
 		choices := a.rank_memory_types(requirements.memoryTypeBits, requirements.size, options)
-		dedicated_info := vk.MemoryDedicatedAllocateInfo{
-			image: image
-		}
-		return a.allocate_from_choices(mut requirements, choices, voidptr(&dedicated_info), true,
-			options.budget_policy, mut alloc_info)
+		return a.allocate_from_choices(mut requirements, choices, unsafe { nil }, true,
+			resource_class, options.budget_policy, mut alloc_info)
 	}
-	vk.get_image_memory_requirements(a.create_info.device, image, mut requirements)
-	choices := a.rank_memory_types(requirements.memoryTypeBits, requirements.size, options)
-	return a.allocate_from_choices(mut requirements, choices, unsafe { nil }, true,
-		options.budget_policy, mut alloc_info)
+	mut dedicated_requirements := vk.MemoryDedicatedRequirements{}
+	mut requirements := vk.MemoryRequirements2{
+		pNext: &dedicated_requirements
+	}
+	info := vk.ImageMemoryRequirementsInfo2{
+		image: image
+	}
+	vk.get_image_memory_requirements2(a.create_info.device, &info, mut requirements)
+	dedicated := force_dedicated || dedicated_requirements.requiresDedicatedAllocation == vk._true
+		|| dedicated_requirements.prefersDedicatedAllocation == vk._true
+	choices := a.rank_memory_types(requirements.memoryRequirements.memoryTypeBits,
+		requirements.memoryRequirements.size, options)
+	if !dedicated {
+		return a.allocate_from_choices(mut requirements.memoryRequirements, choices,
+			unsafe { nil }, false, resource_class, options.budget_policy, mut alloc_info)
+	}
+	dedicated_info := vk.MemoryDedicatedAllocateInfo{
+		image: image
+	}
+	return a.allocate_from_choices(mut requirements.memoryRequirements, choices,
+		voidptr(&dedicated_info), true, resource_class, options.budget_policy, mut alloc_info)
+}
+
+fn image_resource_class(tiling vk.ImageTiling) ?ResourceClass {
+	return match tiling {
+		.linear { .linear_image }
+		.optimal { .optimal_image }
+		else { none }
+	}
+}
+
+fn image_requires_specialized_binding(image_info &vk.ImageCreateInfo) bool {
+	sparse_flags := u32(vk.ImageCreateFlagBits.sparse_binding) | u32(vk.ImageCreateFlagBits.sparse_residency) | u32(vk.ImageCreateFlagBits.sparse_aliased)
+	return u32(image_info.flags) & sparse_flags != 0
+		|| u32(image_info.flags) & u32(vk.ImageCreateFlagBits.disjoint) != 0
+}
+
+fn (mut a Allocator) create_image_with_policy(image_info &vk.ImageCreateInfo, type MemType, dedicated bool, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
+	unsafe {
+		*image = nil
+	}
+	alloc_info = AllocationInfo{}
+	resource_class := image_resource_class(image_info.tiling) or {
+		if dedicated {
+			ResourceClass.unknown
+		} else {
+			return .error_feature_not_present
+		}
+	}
+	if image_requires_specialized_binding(image_info) {
+		return .error_feature_not_present
+	}
+	mut result := vk.create_image(a.create_info.device, image_info, unsafe { nil }, image)
+	if result != .success {
+		return result
+	}
+	result = a.allocate_image_memory(*image, type, resource_class, dedicated, mut alloc_info)
+	if result != .success {
+		vk.destroy_image(a.create_info.device, *image, unsafe { nil })
+		unsafe {
+			*image = nil
+		}
+		return result
+	}
+	result = vk.bind_image_memory(a.create_info.device, *image, alloc_info.memory,
+		alloc_info.offset)
+	if result != .success {
+		vk.destroy_image(a.create_info.device, *image, unsafe { nil })
+		unsafe {
+			*image = nil
+		}
+		_ = a.release(mut alloc_info)
+	}
+	return result
+}
+
+fn (mut a Allocator) create_image_with_options_policy(image_info &vk.ImageCreateInfo, options AllocationOptions, dedicated bool, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
+	unsafe {
+		*image = nil
+	}
+	alloc_info = AllocationInfo{}
+	resource_class := image_resource_class(image_info.tiling) or {
+		if dedicated {
+			ResourceClass.unknown
+		} else {
+			return .error_feature_not_present
+		}
+	}
+	if image_requires_specialized_binding(image_info) {
+		return .error_feature_not_present
+	}
+	mut result := vk.create_image(a.create_info.device, image_info, unsafe { nil }, image)
+	if result != .success {
+		return result
+	}
+	result = a.allocate_image_memory_with_options(*image, options, resource_class, dedicated, mut
+		alloc_info)
+	if result != .success {
+		vk.destroy_image(a.create_info.device, *image, unsafe { nil })
+		unsafe {
+			*image = nil
+		}
+		return result
+	}
+	result = vk.bind_image_memory(a.create_info.device, *image, alloc_info.memory,
+		alloc_info.offset)
+	if result != .success {
+		vk.destroy_image(a.create_info.device, *image, unsafe { nil })
+		unsafe {
+			*image = nil
+		}
+		_ = a.release(mut alloc_info)
+	}
+	return result
 }
 
 // create_buffer creates a buffer, suballocates compatible memory, and binds it.
@@ -642,72 +774,31 @@ fn (mut a Allocator) create_buffer_with_policy(buffer_info &vk.BufferCreateInfo,
 	return vk.Result.success
 }
 
-// create_image creates an image, suballocates compatible memory, and binds it.
-pub fn (mut a Allocator) create_image(p_image_create_info &vk.ImageCreateInfo, type MemType, p_image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
-	unsafe {
-		*p_image = nil
-	}
-	alloc_info = AllocationInfo{}
-	mut res := vk.create_image(a.create_info.device, p_image_create_info, unsafe { nil }, p_image)
-	if res != vk.Result.success {
-		eprintln('Could not create Vulkan image: ${res}')
-		return res
-	}
-
-	res = a.allocate_image_memory(*p_image, type, mut alloc_info)
-	if res != vk.Result.success {
-		eprintln('Could not allocate Vulkan image memory: ${res}')
-		vk.destroy_image(a.create_info.device, *p_image, unsafe { nil })
-		unsafe {
-			*p_image = nil
-		}
-		return res
-	}
-
-	res = vk.bind_image_memory(a.create_info.device, *p_image, alloc_info.memory, alloc_info.offset)
-	if res != vk.Result.success {
-		eprintln('Could not bind Vulkan image memory: ${res}')
-		vk.destroy_image(a.create_info.device, *p_image, unsafe { nil })
-		unsafe {
-			*p_image = nil
-		}
-		a.allocator_free(mut alloc_info)
-		return res
-	}
-	return vk.Result.success
+// create_image creates an image with isolated dedicated memory and binds it.
+// Use create_suballocated_image() to opt into compatible image sharing.
+pub fn (mut a Allocator) create_image(image_info &vk.ImageCreateInfo, type MemType, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
+	return a.create_image_with_policy(image_info, type, true, image, mut alloc_info)
 }
 
 // create_image_with_options creates a dedicated image allocation using the
-// ranked usage/property/budget policy. Image suballocation remains deliberately
-// conservative because buffer-image granularity and tiling compatibility must
-// be tracked together.
+// ranked usage/property/budget policy.
 pub fn (mut a Allocator) create_image_with_options(image_info &vk.ImageCreateInfo, options AllocationOptions, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
-	unsafe {
-		*image = nil
-	}
-	alloc_info = AllocationInfo{}
-	mut result := vk.create_image(a.create_info.device, image_info, unsafe { nil }, image)
-	if result != .success {
-		return result
-	}
-	result = a.allocate_image_memory_with_options(*image, options, mut alloc_info)
-	if result != .success {
-		vk.destroy_image(a.create_info.device, *image, unsafe { nil })
-		unsafe {
-			*image = nil
-		}
-		return result
-	}
-	result = vk.bind_image_memory(a.create_info.device, *image, alloc_info.memory,
-		alloc_info.offset)
-	if result != .success {
-		vk.destroy_image(a.create_info.device, *image, unsafe { nil })
-		unsafe {
-			*image = nil
-		}
-		_ = a.release(mut alloc_info)
-	}
-	return result
+	return a.create_image_with_options_policy(image_info, options, true, image, mut alloc_info)
+}
+
+// create_suballocated_image creates an ordinary linear- or optimal-tiling
+// image, shares memory only with images in the same resource class, and binds
+// it. A Vulkan 1.1+ driver request for dedicated memory is always honored;
+// Vulkan 1.0 conservatively falls back to a dedicated allocation.
+pub fn (mut a Allocator) create_suballocated_image(image_info &vk.ImageCreateInfo, type MemType, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
+	return a.create_image_with_policy(image_info, type, false, image, mut alloc_info)
+}
+
+// create_suballocated_image_with_options is the policy-based counterpart of
+// create_suballocated_image(). Sparse, disjoint, and DRM-format-modifier images
+// require specialized binding paths and return error_feature_not_present here.
+pub fn (mut a Allocator) create_suballocated_image_with_options(image_info &vk.ImageCreateInfo, options AllocationOptions, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
+	return a.create_image_with_options_policy(image_info, options, false, image, mut alloc_info)
 }
 
 // map maps the allocation's byte range for host access. Compatible allocations
@@ -840,6 +931,10 @@ fn (mut a Allocator) trim_empty_blocks_filtered(heap_index u32, filter_by_heap b
 			index++
 			continue
 		}
+		resource_class := a.planner.block_resource_class(block_id) or {
+			index++
+			continue
+		}
 		heap := if memory_type < a.props.memoryTypeCount {
 			a.props.memoryTypes[memory_type].heapIndex
 		} else {
@@ -856,7 +951,7 @@ fn (mut a Allocator) trim_empty_blocks_filtered(heap_index u32, filter_by_heap b
 			return removed
 		}
 		vk.free_memory(a.create_info.device, memory, unsafe { nil })
-		a.note_block_trimmed(memory_type, heap, block_size)
+		a.note_block_trimmed(memory_type, heap, resource_class, block_size)
 		removed++
 	}
 	return removed
@@ -903,6 +998,39 @@ pub fn (a &Allocator) stats_for_memory_type(memory_type u32) AllocatorStats {
 		return AllocatorStats{}
 	}
 	stats := a.planner.stats_for_memory_type(memory_type)
+	return AllocatorStats{
+		block_count:        stats.block_count
+		allocation_count:   stats.allocation_count
+		committed:          stats.committed
+		used:               stats.used
+		free:               stats.free
+		free_range_count:   stats.free_range_count
+		largest_free_range: stats.largest_free_range
+		empty_block_count:  stats.empty_block_count
+	}
+}
+
+// stats_for_resource_class returns aggregate commitment and fragmentation for
+// one compatibility class across every Vulkan memory type.
+pub fn (a &Allocator) stats_for_resource_class(resource_class ResourceClass) AllocatorStats {
+	if isnil(a.planner) {
+		return AllocatorStats{}
+	}
+	stats := a.planner.stats_for_resource_class(resource_class)
+	return allocator_stats_from_block_pool(stats)
+}
+
+// stats_for_memory_type_and_class narrows diagnostics to blocks that a future
+// request with both the given type and resource class could actually reuse.
+pub fn (a &Allocator) stats_for_memory_type_and_class(memory_type u32, resource_class ResourceClass) AllocatorStats {
+	if isnil(a.planner) {
+		return AllocatorStats{}
+	}
+	stats := a.planner.stats_for_memory_type_and_class(memory_type, resource_class)
+	return allocator_stats_from_block_pool(stats)
+}
+
+fn allocator_stats_from_block_pool(stats BlockPoolStats) AllocatorStats {
 	return AllocatorStats{
 		block_count:        stats.block_count
 		allocation_count:   stats.allocation_count

@@ -62,6 +62,7 @@ fn test_allocator_release_returns_only_the_suballocated_range() {
 	allocator.populate_allocation(mut second, fake_memory(42), second_reservation)
 
 	assert first.memory == second.memory
+	assert first.resource_class == .buffer
 	assert first.offset == 0
 	assert second.offset == 16
 	before := allocator.stats()
@@ -73,6 +74,9 @@ fn test_allocator_release_returns_only_the_suballocated_range() {
 	assert before.largest_free_range == 32
 	assert before.empty_block_count == 0
 	assert allocator.stats_for_memory_type(4) == before
+	assert allocator.stats_for_resource_class(.buffer) == before
+	assert allocator.stats_for_memory_type_and_class(4, .buffer) == before
+	assert allocator.stats_for_memory_type_and_class(4, .optimal_image) == AllocatorStats{}
 	assert allocator.stats_for_memory_type(99) == AllocatorStats{}
 
 	first_released := allocator.release(mut first)
@@ -97,6 +101,34 @@ fn test_allocator_release_returns_only_the_suballocated_range() {
 	assert final_stats.empty_block_count == 1
 }
 
+fn test_image_resource_classes_and_specialized_paths_are_explicit() {
+	assert image_resource_class(.linear) or { panic('linear tiling should be supported') } == .linear_image
+	assert image_resource_class(.optimal) or { panic('optimal tiling should be supported') } == .optimal_image
+	assert image_resource_class(.drm_format_modifier_ext) == none
+
+	mut allocator := Allocator{}
+	mut image := vk.Image(unsafe { nil })
+	mut allocation := AllocationInfo{}
+	sparse_info := vk.ImageCreateInfo{
+		flags:  u32(vk.ImageCreateFlagBits.sparse_binding)
+		tiling: .optimal
+	}
+	assert allocator.create_suballocated_image(&sparse_info, .gpu, &image, mut allocation) == .error_feature_not_present
+	assert isnil(image)
+	assert isnil(allocation.memory)
+	disjoint_info := vk.ImageCreateInfo{
+		flags:  u32(vk.ImageCreateFlagBits.disjoint)
+		tiling: .optimal
+	}
+	assert allocator.create_suballocated_image(&disjoint_info, .gpu, &image, mut allocation) == .error_feature_not_present
+	assert isnil(image)
+	modifier_info := vk.ImageCreateInfo{
+		tiling: .drm_format_modifier_ext
+	}
+	assert allocator.create_suballocated_image(&modifier_info, .gpu, &image, mut allocation) == .error_feature_not_present
+	assert isnil(image)
+}
+
 fn test_allocator_rejects_forged_public_allocation_fields() {
 	mut planner := new_memory_block_pool(32, 1) or { panic(err) }
 	block_id := planner.add_block(1, 32) or { panic(err) }
@@ -108,10 +140,17 @@ fn test_allocator_rejects_forged_public_allocation_fields() {
 	assert remembered
 	mut allocation := AllocationInfo{}
 	allocator.populate_allocation(mut allocation, fake_memory(7), reservation)
+	original_offset := allocation.offset
 	allocation.offset++
 
 	mut mapped := voidptr(unsafe { nil })
 	assert allocator.map(mut allocation, &mapped) == .error_memory_map_failed
 	assert !allocator.release(mut allocation)
-	assert allocator.stats().allocation_count == 1
+	allocation.offset = original_offset
+	allocation.resource_class = .optimal_image
+	assert allocator.map(mut allocation, &mapped) == .error_memory_map_failed
+	assert !allocator.release(mut allocation)
+	allocation.resource_class = .buffer
+	assert allocator.release(mut allocation)
+	assert allocator.stats().allocation_count == 0
 }

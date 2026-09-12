@@ -20,6 +20,7 @@ pub:
 	result            vk.Result
 	memory_type       u32 = max_u32
 	heap_index        u32 = max_u32
+	resource_class    ResourceClass
 	requested_size    u64
 	allocation_offset u64
 	block_size        u64
@@ -164,6 +165,7 @@ fn (mut a Allocator) note_allocation_success(alloc_info AllocationInfo, dedicate
 		result:            .success
 		memory_type:       alloc_info.mem_type
 		heap_index:        alloc_info.heap_index
+		resource_class:    alloc_info.resource_class
 		requested_size:    alloc_info.size
 		allocation_offset: alloc_info.offset
 		block_size:        alloc_info.block_size
@@ -172,13 +174,14 @@ fn (mut a Allocator) note_allocation_success(alloc_info AllocationInfo, dedicate
 	})
 }
 
-fn (mut a Allocator) note_allocation_failure(result vk.Result, requested_size u64, memory_type u32, heap_index u32, dedicated bool) {
+fn (mut a Allocator) note_allocation_failure(result vk.Result, requested_size u64, memory_type u32, heap_index u32, dedicated bool, resource_class ResourceClass) {
 	a.counters_.allocation_failures++
 	a.record_event(AllocatorEvent{
 		kind:           .allocation_failed
 		result:         result
 		memory_type:    memory_type
 		heap_index:     heap_index
+		resource_class: resource_class
 		requested_size: requested_size
 		dedicated:      dedicated
 	})
@@ -200,6 +203,7 @@ fn (mut a Allocator) note_allocation_release(alloc_info AllocationInfo, dedicate
 		result:            .success
 		memory_type:       alloc_info.mem_type
 		heap_index:        alloc_info.heap_index
+		resource_class:    alloc_info.resource_class
 		requested_size:    alloc_info.size
 		allocation_offset: alloc_info.offset
 		block_size:        alloc_info.block_size
@@ -208,18 +212,19 @@ fn (mut a Allocator) note_allocation_release(alloc_info AllocationInfo, dedicate
 	})
 }
 
-fn (mut a Allocator) note_block_trimmed(memory_type u32, heap_index u32, block_size u64) {
+fn (mut a Allocator) note_block_trimmed(memory_type u32, heap_index u32, resource_class ResourceClass, block_size u64) {
 	a.counters_.block_frees++
 	a.counters_.trimmed_blocks++
 	if block_size <= a.diagnostic_committed {
 		a.diagnostic_committed -= block_size
 	}
 	a.record_event(AllocatorEvent{
-		kind:        .block_trimmed
-		result:      .success
-		memory_type: memory_type
-		heap_index:  heap_index
-		block_size:  block_size
+		kind:           .block_trimmed
+		result:         .success
+		memory_type:    memory_type
+		heap_index:     heap_index
+		resource_class: resource_class
+		block_size:     block_size
 	})
 }
 

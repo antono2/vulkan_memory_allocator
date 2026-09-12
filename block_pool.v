@@ -8,17 +8,19 @@ struct BlockReservation {
 	block_id   u64
 	allocation memory.RangeAllocation
 pub:
-	memory_type u32
-	offset      u64
-	size        u64
+	memory_type    u32
+	resource_class ResourceClass
+	offset         u64
+	size           u64
 }
 
 struct MemoryBlock {
-	id          u64
-	memory_type u32
-	capacity    u64
-	dedicated   bool
-	ranges      &memory.RangeAllocator @[required]
+	id             u64
+	memory_type    u32
+	resource_class ResourceClass
+	capacity       u64
+	dedicated      bool
+	ranges         &memory.RangeAllocator @[required]
 }
 
 struct BlockPoolStats {
@@ -32,9 +34,9 @@ struct BlockPoolStats {
 	empty_block_count  int
 }
 
-// MemoryBlockPool plans suballocations without owning Vulkan handles. Keeping
-// this layer independent makes allocation policy deterministic and testable on
-// systems without a Vulkan device.
+// MemoryBlockPool plans memory-type- and resource-class-compatible
+// suballocations without owning Vulkan handles. Keeping this layer independent
+// makes allocation policy deterministic and testable without a Vulkan device.
 struct MemoryBlockPool {
 	default_block_size u64
 	max_blocks         int
@@ -96,6 +98,15 @@ fn (pool &MemoryBlockPool) block_memory_type(block_id u64) ?u32 {
 	return none
 }
 
+fn (pool &MemoryBlockPool) block_resource_class(block_id u64) ?ResourceClass {
+	for block in pool.blocks {
+		if block.id == block_id {
+			return block.resource_class
+		}
+	}
+	return none
+}
+
 fn (pool &MemoryBlockPool) heap_stats(props &vk.PhysicalDeviceMemoryProperties, heap_index u32) (u64, u64) {
 	mut committed := u64(0)
 	mut used := u64(0)
@@ -122,14 +133,22 @@ fn (pool &MemoryBlockPool) recommended_block_size(requested_size u64) !u64 {
 }
 
 fn (mut pool MemoryBlockPool) add_block(memory_type u32, capacity u64) !u64 {
-	return pool.add_block_with_policy(memory_type, capacity, false)
+	return pool.add_block_for_class(memory_type, .buffer, capacity)
 }
 
 fn (mut pool MemoryBlockPool) add_dedicated_block(memory_type u32, capacity u64) !u64 {
-	return pool.add_block_with_policy(memory_type, capacity, true)
+	return pool.add_dedicated_block_for_class(memory_type, .unknown, capacity)
 }
 
-fn (mut pool MemoryBlockPool) add_block_with_policy(memory_type u32, capacity u64, dedicated bool) !u64 {
+fn (mut pool MemoryBlockPool) add_block_for_class(memory_type u32, resource_class ResourceClass, capacity u64) !u64 {
+	return pool.add_block_with_policy(memory_type, resource_class, capacity, false)
+}
+
+fn (mut pool MemoryBlockPool) add_dedicated_block_for_class(memory_type u32, resource_class ResourceClass, capacity u64) !u64 {
+	return pool.add_block_with_policy(memory_type, resource_class, capacity, true)
+}
+
+fn (mut pool MemoryBlockPool) add_block_with_policy(memory_type u32, resource_class ResourceClass, capacity u64, dedicated bool) !u64 {
 	if capacity == 0 {
 		return error('memory block capacity must be greater than zero')
 	}
@@ -138,11 +157,12 @@ fn (mut pool MemoryBlockPool) add_block_with_policy(memory_type u32, capacity u6
 	}
 	id := pool.next_block_id()
 	pool.blocks << MemoryBlock{
-		id:          id
-		memory_type: memory_type
-		capacity:    capacity
-		dedicated:   dedicated
-		ranges:      memory.new_range_allocator(capacity)
+		id:             id
+		memory_type:    memory_type
+		resource_class: resource_class
+		capacity:       capacity
+		dedicated:      dedicated
+		ranges:         memory.new_range_allocator(capacity)
 	}
 	return id
 }
@@ -151,6 +171,10 @@ fn (mut pool MemoryBlockPool) add_block_with_policy(memory_type u32, capacity u6
 // block, allowing the Vulkan layer to allocate a real VkDeviceMemory object
 // before registering its matching planning block.
 fn (mut pool MemoryBlockPool) reserve(memory_type u32, size u64, alignment u64) !BlockReservation {
+	return pool.reserve_for_class(memory_type, .buffer, size, alignment)
+}
+
+fn (mut pool MemoryBlockPool) reserve_for_class(memory_type u32, resource_class ResourceClass, size u64, alignment u64) !BlockReservation {
 	if size == 0 {
 		return error('allocation size must be greater than zero')
 	}
@@ -158,17 +182,19 @@ fn (mut pool MemoryBlockPool) reserve(memory_type u32, size u64, alignment u64) 
 		return error('allocation alignment must be greater than zero')
 	}
 	for mut block in pool.blocks {
-		if block.memory_type != memory_type || block.dedicated {
+		if block.memory_type != memory_type || block.resource_class != resource_class
+			|| block.dedicated {
 			continue
 		}
 		if allocation := block.ranges.allocate(size, alignment) {
 			return BlockReservation{
-				owner:       pool
-				block_id:    block.id
-				allocation:  allocation
-				memory_type: memory_type
-				offset:      allocation.offset
-				size:        allocation.size
+				owner:          pool
+				block_id:       block.id
+				allocation:     allocation
+				memory_type:    memory_type
+				resource_class: resource_class
+				offset:         allocation.offset
+				size:           allocation.size
 			}
 		}
 	}
@@ -188,12 +214,13 @@ fn (mut pool MemoryBlockPool) reserve_from_block(block_id u64, size u64, alignme
 		}
 		allocation := block.ranges.allocate(size, alignment)!
 		return BlockReservation{
-			owner:       pool
-			block_id:    block.id
-			allocation:  allocation
-			memory_type: block.memory_type
-			offset:      allocation.offset
-			size:        allocation.size
+			owner:          pool
+			block_id:       block.id
+			allocation:     allocation
+			memory_type:    block.memory_type
+			resource_class: block.resource_class
+			offset:         allocation.offset
+			size:           allocation.size
 		}
 	}
 	return error('memory block does not exist')
@@ -206,6 +233,7 @@ fn (pool &MemoryBlockPool) contains(reservation BlockReservation) bool {
 	for block in pool.blocks {
 		if block.id == reservation.block_id {
 			return block.memory_type == reservation.memory_type
+				&& block.resource_class == reservation.resource_class
 				&& reservation.offset == reservation.allocation.offset
 				&& reservation.size == reservation.allocation.size
 				&& block.ranges.contains(reservation.allocation)
@@ -219,7 +247,8 @@ fn (mut pool MemoryBlockPool) release(reservation BlockReservation) bool {
 		return false
 	}
 	for mut block in pool.blocks {
-		if block.id != reservation.block_id || block.memory_type != reservation.memory_type {
+		if block.id != reservation.block_id || block.memory_type != reservation.memory_type
+			|| block.resource_class != reservation.resource_class {
 			continue
 		}
 		if reservation.offset != reservation.allocation.offset
@@ -248,14 +277,22 @@ fn (mut pool MemoryBlockPool) remove_empty_block(block_id u64) bool {
 }
 
 fn (pool &MemoryBlockPool) stats() BlockPoolStats {
-	return pool.collect_stats(0, false)
+	return pool.collect_stats(0, .unknown, false, false)
 }
 
 fn (pool &MemoryBlockPool) stats_for_memory_type(memory_type u32) BlockPoolStats {
-	return pool.collect_stats(memory_type, true)
+	return pool.collect_stats(memory_type, .unknown, true, false)
 }
 
-fn (pool &MemoryBlockPool) collect_stats(memory_type u32, filter_by_memory_type bool) BlockPoolStats {
+fn (pool &MemoryBlockPool) stats_for_resource_class(resource_class ResourceClass) BlockPoolStats {
+	return pool.collect_stats(0, resource_class, false, true)
+}
+
+fn (pool &MemoryBlockPool) stats_for_memory_type_and_class(memory_type u32, resource_class ResourceClass) BlockPoolStats {
+	return pool.collect_stats(memory_type, resource_class, true, true)
+}
+
+fn (pool &MemoryBlockPool) collect_stats(memory_type u32, resource_class ResourceClass, filter_by_memory_type bool, filter_by_resource_class bool) BlockPoolStats {
 	mut block_count := 0
 	mut allocation_count := 0
 	mut committed := u64(0)
@@ -265,6 +302,9 @@ fn (pool &MemoryBlockPool) collect_stats(memory_type u32, filter_by_memory_type 
 	mut empty_block_count := 0
 	for block in pool.blocks {
 		if filter_by_memory_type && block.memory_type != memory_type {
+			continue
+		}
+		if filter_by_resource_class && block.resource_class != resource_class {
 			continue
 		}
 		block_count++

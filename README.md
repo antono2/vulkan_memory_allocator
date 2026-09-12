@@ -12,15 +12,18 @@ enough for examples while avoiding one Vulkan allocation per resource.
 
 ## How it fits together
 
-The allocator has three deliberately separate layers:
+The allocator has four deliberately separate layers:
 
 1. **Policy** filters the memory types allowed by Vulkan, applies required
    property flags, and ranks the remaining types for GPU-only, upload, or
    readback use. The selected `MemoryTypeChoice` explains the heap, flags,
    budget state, and score.
 2. **Block planning** uses `antono2.memory.RangeAllocator` to place compatible
-   buffers into larger memory-type-specific blocks. This CPU-only layer is
-   deterministic and independently tested.
+   resources into larger blocks. Every block has both a Vulkan memory type and
+   a resource class (`buffer`, `linear_image`, or `optimal_image`), so classes
+   with a [`bufferImageGranularity`](https://docs.vulkan.org/spec/latest/chapters/limits.html#limits-bufferimagegranularity)
+   boundary rule never become adjacent. This
+   CPU-only layer is deterministic and independently tested.
 3. **Vulkan ownership** creates, maps, binds, and frees `VkDeviceMemory` while
    `AllocationInfo` keeps the selected type, heap, properties, block size, and
    private ownership record together.
@@ -28,9 +31,10 @@ The allocator has three deliberately separate layers:
    activity and an optional bounded event trace. Normal applications pay no
    trace-storage cost unless they opt in.
 
-Images remain dedicated. That conservative rule avoids hiding the additional
-tiling and buffer-image granularity rules that a safe image suballocator would
-need to model. Existing `MemType` APIs remain available for short examples;
+The default image APIs remain dedicated for compatibility. Explicit
+`create_suballocated_image*` APIs safely share ordinary linear- or
+optimal-tiling images within their own class and honor driver requests for
+dedicated memory. Existing `MemType` APIs remain available for short examples;
 new applications should normally use `AllocationOptions`.
 
 ## Install
@@ -75,11 +79,12 @@ mut allocator := vma.new(vma.AllocatorCreateInfo{
 })
 ```
 
-Buffer blocks are separated by Vulkan memory-type index. Small buffers share the
-preferred block size; a buffer larger than that receives a large-enough block
-of its own. Images use isolated dedicated blocks, avoiding buffer-image
-granularity conflicts and satisfying Vulkan 1.1 dedicated-allocation metadata.
-`max_memory_blocks` defaults to 256 and may be lowered in the create information.
+Shared blocks are separated by Vulkan memory-type index and resource class.
+Small compatible resources share the preferred block size; a resource larger
+than that receives a large-enough block of its own. The allocator queries
+Vulkan 1.1 dedicated-allocation metadata before suballocating an image and
+falls back to dedicated memory on Vulkan 1.0. `max_memory_blocks` defaults to
+256 and may be lowered in the create information.
 
 The lower-level `allocate()` method also uses an isolated block because raw
 `VkMemoryRequirements` do not identify whether the caller will bind a buffer or
@@ -159,9 +164,10 @@ if !allocator.release(mut allocation) {
 }
 ```
 
-`release()` returns shared-buffer ranges to their existing block so future
-buffers can reuse them. Dedicated allocations are freed immediately. Empty
-shared blocks remain cached; reclaim them explicitly when appropriate:
+`release()` returns shared ranges to their compatible block so future resources
+of the same class and memory type can reuse them. Dedicated allocations are
+freed immediately. Empty shared blocks remain cached; reclaim them explicitly
+when appropriate:
 
 ```v
 println('released ${allocator.trim_empty_blocks()} empty memory blocks')
@@ -169,6 +175,38 @@ println('released ${allocator.trim_empty_blocks()} empty memory blocks')
 
 Call `allocator.destroy()` only after destroying every buffer and image backed
 by it. This frees any allocations that were not individually released.
+
+## Image allocation
+
+`create_image()` and `create_image_with_options()` keep every image in a
+dedicated block. This remains the simplest default for low image counts and is
+source-compatible with earlier releases.
+
+When an application creates many ordinary images, opt into class-safe sharing:
+
+```v
+mut image := vk.Image(unsafe { nil })
+mut image_allocation := vma.AllocationInfo{}
+result := allocator.create_suballocated_image_with_options(&image_info,
+	vma.AllocationOptions{
+		usage: .gpu_only
+	}, &image, mut image_allocation)
+if result != .success {
+	return error('could not create image: ${result}')
+}
+```
+
+Linear images share only with linear images; optimal images share only with
+optimal images; buffers share only with buffers. If Vulkan 1.1's
+[`VkMemoryDedicatedRequirements`](https://docs.vulkan.org/refpages/latest/refpages/source/VkMemoryDedicatedRequirements.html)
+query reports that dedicated memory is required or preferred, the allocator
+honors it transparently. Vulkan 1.0 also uses the dedicated fallback because it
+cannot make the core requirements query.
+
+Sparse images use sparse binding instead of `vkBindImageMemory`; disjoint images
+bind planes separately; DRM format modifier images require additional layout
+handling. The explicit suballocation APIs return `error_feature_not_present`
+for these specialized paths rather than treating them as ordinary images.
 
 ## Statistics
 
@@ -195,6 +233,17 @@ allocation:
 type_stats := allocator.stats_for_memory_type(allocation.mem_type)
 println('type ${allocation.mem_type}: free=${type_stats.free}, largest=${type_stats.largest_free_range}')
 ```
+
+Memory-type totals can still span incompatible resource classes. For the exact
+set of blocks a similar request could reuse, include the class:
+
+```v
+compatible := allocator.stats_for_memory_type_and_class(allocation.mem_type,
+	allocation.resource_class)
+println('compatible free=${compatible.free}, largest=${compatible.largest_free_range}')
+```
+
+`stats_for_resource_class()` aggregates one class across memory types.
 
 If total compatible free space is large enough but its largest range is too
 small, the existing blocks are externally fragmented. If an empty block is
@@ -228,7 +277,7 @@ appropriate to their application.
 
 ```v
 for event in allocator.recent_events() {
-	println('#${event.sequence} ${event.kind}: size=${event.requested_size}, type=${event.memory_type}, result=${event.result}')
+	println('#${event.sequence} ${event.kind}: size=${event.requested_size}, type=${event.memory_type}, class=${event.resource_class}, result=${event.result}')
 }
 ```
 
@@ -331,7 +380,8 @@ non-coherent memory correctly.
   the renderer, which normally already serializes Vulkan device-memory calls.
 - Concurrently mapped allocations in one shared block reuse a single underlying
   Vulkan mapping. Each successful `map()` must have a matching `unmap()`.
-- The allocator does not relocate live resources or suballocate images.
+- The allocator does not relocate live resources. Image sharing is opt-in and
+  excludes sparse, disjoint, and DRM-format-modifier images.
 - Heap budgets guide selection but cannot enforce a process-wide or system-wide
   limit because other allocators can change process usage and external system
   activity can change the budget concurrently.
@@ -369,5 +419,14 @@ release/refill cycles, bounded-trace wraparound, and final coalescing checks:
 v run examples/stress
 ```
 
-CI executes both examples against Mesa's CPU Vulkan implementation, so it does
-not depend on access to a hardware GPU.
+The [image suballocation example](examples/image_suballocation/main.v) verifies
+that two optimal images share one real block while a linear image and buffer use
+separate class-compatible blocks:
+
+```sh
+v run examples/image_suballocation
+```
+
+CI executes all examples against Mesa's CPU Vulkan implementation with the
+Khronos validation layer enabled, so it does not depend on a hardware GPU and
+binding-rule regressions remain visible.

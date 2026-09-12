@@ -28,7 +28,7 @@ fn test_allocator_diagnostics_track_lifecycle_and_bound_the_trace() {
 	}]
 	mut allocation := AllocationInfo{}
 	result := allocator.allocate_from_choices(mut requirements, choices, unsafe { nil }, false,
-		.ignore, mut allocation)
+		.buffer, .ignore, mut allocation)
 	assert result == .success
 	assert !allocation.created_block
 	assert allocator.release(mut allocation)
@@ -39,16 +39,16 @@ fn test_allocator_diagnostics_track_lifecycle_and_bound_the_trace() {
 		memoryTypeBits: 1
 	}
 	mut unavailable_allocation := AllocationInfo{}
-	assert allocator.allocate_from_choices(mut unavailable, [], unsafe { nil }, false, .ignore, mut
-		unavailable_allocation) == .error_feature_not_present
+	assert allocator.allocate_from_choices(mut unavailable, [], unsafe { nil }, false, .buffer,
+		.ignore, mut unavailable_allocation) == .error_feature_not_present
 
 	mut invalid := vk.MemoryRequirements{
 		size:           4
 		memoryTypeBits: 1
 	}
 	mut invalid_allocation := AllocationInfo{}
-	assert allocator.allocate_from_choices(mut invalid, choices, unsafe { nil }, false, .ignore, mut
-		invalid_allocation) == .error_initialization_failed
+	assert allocator.allocate_from_choices(mut invalid, choices, unsafe { nil }, false, .buffer,
+		.ignore, mut invalid_allocation) == .error_initialization_failed
 
 	diagnostics := allocator.diagnostics()
 	assert diagnostics.current.block_count == 1
@@ -74,6 +74,7 @@ fn test_allocator_diagnostics_track_lifecycle_and_bound_the_trace() {
 	assert events.len == 3
 	assert events[0].sequence == 2
 	assert events[0].kind == .allocation_released
+	assert events[0].resource_class == .buffer
 	assert events[1].sequence == 3
 	assert events[1].kind == .allocation_failed
 	assert events[1].result == .error_feature_not_present
@@ -96,8 +97,8 @@ fn test_allocator_diagnostics_track_lifecycle_and_bound_the_trace() {
 		memoryTypeBits: 1
 	}
 	mut after_reset_allocation := AllocationInfo{}
-	assert allocator.allocate_from_choices(mut after_reset, [], unsafe { nil }, false, .ignore, mut
-		after_reset_allocation) == .error_feature_not_present
+	assert allocator.allocate_from_choices(mut after_reset, [], unsafe { nil }, false, .buffer,
+		.ignore, mut after_reset_allocation) == .error_feature_not_present
 	after_reset_events := allocator.recent_events()
 	assert after_reset_events.len == 1
 	assert after_reset_events[0].sequence == 5
