@@ -72,6 +72,7 @@ fn run() ! {
 		device:                device
 		preferred_block_size:  4096
 		memory_budget_enabled: memory_budget_supported
+		event_trace_capacity:  16
 	})
 	defer {
 		allocator.destroy()
@@ -189,6 +190,24 @@ fn run() ! {
 	assert second_released
 	assert allocator.trim_empty_blocks() == 1
 	assert allocator.stats().block_count == 0
+
+	diagnostics := allocator.diagnostics()
+	assert diagnostics.current.allocation_count == 0
+	assert diagnostics.counters.allocation_attempts == 3
+	assert diagnostics.counters.allocation_successes == 3
+	assert diagnostics.counters.allocation_failures == 0
+	assert diagnostics.counters.allocation_releases == 3
+	assert diagnostics.counters.block_allocations == 2
+	assert diagnostics.counters.block_reuses == 1
+	assert diagnostics.counters.block_allocations + diagnostics.counters.block_reuses == diagnostics.counters.allocation_successes
+	assert diagnostics.counters.peak_allocation_count == 3
+	assert diagnostics.counters.trimmed_blocks == 1
+	assert diagnostics.retained_event_count == 7
+	assert diagnostics.dropped_event_count == 0
+	events := allocator.recent_events()
+	assert events.len == 7
+	assert events[0].sequence < events[events.len - 1].sequence
+	println('diagnostics: ${diagnostics.counters.allocation_successes} allocations, ${diagnostics.counters.block_reuses} block reuse, peak=${diagnostics.counters.peak_allocation_count}')
 
 	mut uploads := vma.new_upload_ring_with_options(mut allocator, 1024, vma.AllocationOptions{
 		usage: .upload

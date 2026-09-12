@@ -40,7 +40,7 @@ jobs:
       - name: Vet allocator sources
         working-directory: source/modules/antono2/vkmemalloc
         # V 0.5.2's directory-mode vet parser does not accept aliased imports.
-        run: v vet block_pool.v block_pool_test.v mapped_memory.v mapped_memory_test.v memory_policy.v memory_policy_test.v upload_ring.v upload_ring_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
+        run: v vet block_pool.v block_pool_test.v block_pool_stress_test.v diagnostics.v diagnostics_test.v mapped_memory.v mapped_memory_test.v memory_policy.v memory_policy_test.v upload_ring.v upload_ring_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
       - name: Run allocator tests
         working-directory: source/modules/antono2/vkmemalloc
         run: v run setup.vsh --check
@@ -50,6 +50,12 @@ jobs:
           lavapipe_icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
           test -n "$lavapipe_icd"
           VK_ICD_FILENAMES="$lavapipe_icd" v run examples/buffer_suballocation
+      - name: Run sustained Vulkan allocation workload
+        working-directory: source/modules/antono2/vkmemalloc
+        run: |
+          lavapipe_icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
+          test -n "$lavapipe_icd"
+          VK_ICD_FILENAMES="$lavapipe_icd" v run examples/stress
 
   sanitizers:
     runs-on: ubuntu-24.04

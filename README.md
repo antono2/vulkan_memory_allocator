@@ -24,6 +24,9 @@ The allocator has three deliberately separate layers:
 3. **Vulkan ownership** creates, maps, binds, and frees `VkDeviceMemory` while
    `AllocationInfo` keeps the selected type, heap, properties, block size, and
    private ownership record together.
+4. **Observability** exposes current occupancy separately from cumulative
+   activity and an optional bounded event trace. Normal applications pay no
+   trace-storage cost unless they opt in.
 
 Images remain dedicated. That conservative rule avoids hiding the additional
 tiling and buffer-image granularity rules that a safe image suballocator would
@@ -67,6 +70,8 @@ mut allocator := vma.new(vma.AllocatorCreateInfo{
 	physical_device: physical_device
 	device: device
 	preferred_block_size: 64 * 1024 * 1024
+	// Optional: retain the latest allocator lifecycle events for diagnostics.
+	event_trace_capacity: 256
 })
 ```
 
@@ -197,6 +202,41 @@ reported, `trim_empty_blocks()` can return it to Vulkan before retrying another
 memory class. The allocator may still create a new compatible block when its
 configured block limit and the Vulkan device allow it.
 
+### Activity counters and event traces
+
+`diagnostics()` combines current `AllocatorStats` with cumulative counters and
+high-water marks. Counters are always collected and make it possible to answer
+questions such as whether workload growth came from block reuse or additional
+`VkDeviceMemory` objects:
+
+```v
+diagnostics := allocator.diagnostics()
+println('live: ${diagnostics.current.allocation_count}')
+println('peak live: ${diagnostics.counters.peak_allocation_count}')
+println('new blocks: ${diagnostics.counters.block_allocations}')
+println('block reuses: ${diagnostics.counters.block_reuses}')
+println('fallback attempts: ${diagnostics.counters.fallback_attempts}')
+```
+
+Set `event_trace_capacity` in `AllocatorCreateInfo` to retain the latest
+allocation success, failure, release, and trim events. The storage is a bounded
+ring: old records are overwritten, `dropped_event_count` reports how many were
+replaced, and `recent_events()` always returns the retained records in
+chronological order. Events use a monotonic sequence rather than a wall-clock
+timestamp so traces remain deterministic and callers can add the timing system
+appropriate to their application.
+
+```v
+for event in allocator.recent_events() {
+	println('#${event.sequence} ${event.kind}: size=${event.requested_size}, type=${event.memory_type}, result=${event.result}')
+}
+```
+
+`reset_diagnostics()` starts a new measurement window without affecting live
+resources. It clears the trace and cumulative activity, then seeds high-water
+marks from the allocator's current state. Returned diagnostics and event arrays
+are snapshots; modifying them does not change the allocator.
+
 ### Heap budgets
 
 `VK_EXT_memory_budget` exposes driver estimates for current heap usage and the
@@ -277,13 +317,18 @@ non-coherent memory correctly.
 
 ## Ownership and limitations
 
+- Keep and pass the single `Allocator` instance returned by `new()`; do not copy
+  it after allocations begin. Copies would refer to the same Vulkan blocks and
+  planner while carrying separate mutable bookkeeping.
 - An `AllocationInfo` belongs to the allocator that created it.
 - A successful `release()` clears the complete `AllocationInfo` and prevents a
   second free through that record.
 - The allocator tracks at most 256 memory blocks by default. Each block can
   contain many suballocations.
 - The allocator is not internally synchronized. Externally synchronize access
-  when multiple threads can allocate or free concurrently.
+  when multiple threads can allocate, free, query diagnostics, or reset the
+  diagnostic window concurrently. This keeps synchronization ownership with
+  the renderer, which normally already serializes Vulkan device-memory calls.
 - Concurrently mapped allocations in one shared block reuse a single underlying
   Vulkan mapping. Each successful `map()` must have a matching `unmap()`.
 - The allocator does not relocate live resources or suballocate images.
@@ -297,21 +342,32 @@ errors instead of assuming allocation succeeds.
 
 ## Tests
 
-The bookkeeping tests do not require a Vulkan-capable GPU:
+The bookkeeping tests do not require a Vulkan-capable GPU. They include a
+30,000-operation mixed-size, mixed-alignment workload across multiple memory
+types and continuously verify ownership, non-overlap, accounting, and
+coalescing invariants:
 
 ```sh
 v test .
 ```
 
-The runnable example enables live budgets when available, creates two real
-policy-selected upload buffers, verifies that they share a memory block, maps
-and flushes them, creates a dedicated GPU-only image, prints heap diagnostics,
-then exercises a persistently mapped upload ring through wraparound and FIFO
-retirement:
+The introductory runnable example enables live budgets when available, creates
+two real policy-selected upload buffers, verifies that they share a memory
+block, maps and flushes them, creates a dedicated GPU-only image, and prints
+heap diagnostics and allocation counters. It also exercises a persistently
+mapped upload ring through wraparound and FIFO retirement:
 
 ```sh
 v run examples/buffer_suballocation
 ```
 
-CI executes this example against Mesa's CPU Vulkan implementation, so it does
+The [separate sustained workload](examples/stress/main.v) performs 1,536 real
+Vulkan buffer allocations with mapped writes, flushes, fragmenting
+release/refill cycles, bounded-trace wraparound, and final coalescing checks:
+
+```sh
+v run examples/stress
+```
+
+CI executes both examples against Mesa's CPU Vulkan implementation, so it does
 not depend on access to a hardware GPU.
