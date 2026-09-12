@@ -120,12 +120,12 @@ fn test_block_pool_rejects_foreign_forged_and_stale_reservations() {
 	assert !first_pool.contains(foreign)
 	assert !first_pool.release(foreign)
 	assert !first_pool.release(BlockReservation{
-		owner: reservation.owner
-		block_id: reservation.block_id
-		allocation: reservation.allocation
+		owner:       reservation.owner
+		block_id:    reservation.block_id
+		allocation:  reservation.allocation
 		memory_type: reservation.memory_type
-		offset: reservation.offset + 1
-		size: reservation.size
+		offset:      reservation.offset + 1
+		size:        reservation.size
 	})
 	released := first_pool.release(reservation)
 	assert released

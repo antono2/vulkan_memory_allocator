@@ -41,15 +41,15 @@ fn test_coherent_flush_validates_ownership_without_a_driver_call() {
 	props.memoryTypeCount = 1
 	props.memoryTypes[0] = vk.MemoryType{
 		propertyFlags: u32(vk.MemoryPropertyFlagBits.host_visible) | u32(vk.MemoryPropertyFlagBits.host_coherent)
-		heapIndex: 0
+		heapIndex:     0
 	}
 	mut planner := new_memory_block_pool(256, 1) or { panic(err) }
 	block_id := planner.add_block(0, 256) or { panic(err) }
 	reservation := planner.reserve(0, 64, 1) or { panic(err) }
 	mut allocator := Allocator{
-		props: props
+		props:                  props
 		non_coherent_atom_size: 64
-		planner: planner
+		planner:                planner
 	}
 	assert allocator.remember_block(mapped_test_memory(1), block_id)
 	mut allocation := AllocationInfo{}

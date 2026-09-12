@@ -6,8 +6,8 @@ fn test_upload_ring_returns_aligned_host_pointers_and_wraps() {
 	mut storage := []u8{len: 64}
 	mut uploads := UploadRing{
 		capacity: 64
-		mapped: storage.data
-		ranges: memory.new_ring_allocator(64)
+		mapped:   storage.data
+		ranges:   memory.new_ring_allocator(64)
 	}
 	first := uploads.allocate(24, 16) or { panic(err) }
 	second := uploads.allocate(24, 16) or { panic(err) }
@@ -36,24 +36,24 @@ fn test_upload_ring_rejects_foreign_forged_and_destroyed_slices() {
 	mut second_storage := []u8{len: 32}
 	mut first_ring := UploadRing{
 		capacity: 32
-		mapped: first_storage.data
-		ranges: memory.new_ring_allocator(32)
+		mapped:   first_storage.data
+		ranges:   memory.new_ring_allocator(32)
 	}
 	mut second_ring := UploadRing{
 		capacity: 32
-		mapped: second_storage.data
-		ranges: memory.new_ring_allocator(32)
+		mapped:   second_storage.data
+		ranges:   memory.new_ring_allocator(32)
 	}
 	allocation := first_ring.allocate(8, 1) or { panic(err) }
 	foreign := second_ring.allocate(8, 1) or { panic(err) }
 	assert !first_ring.contains(foreign)
 	assert !first_ring.retire(foreign)
 	forged := UploadSlice{
-		owner: allocation.owner
+		owner:      allocation.owner
 		allocation: allocation.allocation
-		offset: allocation.offset
-		size: allocation.size
-		data: unsafe { voidptr(usize(allocation.data) + 1) }
+		offset:     allocation.offset
+		size:       allocation.size
+		data:       unsafe { voidptr(usize(allocation.data) + 1) }
 	}
 	assert !first_ring.contains(forged)
 	assert !first_ring.retire(forged)

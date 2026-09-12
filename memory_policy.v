@@ -80,11 +80,13 @@ pub fn supports_memory_budget(physical_device vk.PhysicalDevice) bool {
 	for {
 		mut count := u32(0)
 		mut no_properties := unsafe { nil }
-		if vk.enumerate_device_extension_properties(physical_device, unsafe { nil }, &count, mut no_properties) != .success || count == 0 {
+		if vk.enumerate_device_extension_properties(physical_device, unsafe { nil }, &count, mut no_properties) != .success
+			|| count == 0 {
 			return false
 		}
 		mut properties := []vk.ExtensionProperties{len: int(count)}
-		result := vk.enumerate_device_extension_properties(physical_device, unsafe { nil }, &count, mut properties[0])
+		result := vk.enumerate_device_extension_properties(physical_device, unsafe { nil }, &count, mut
+			properties[0])
 		if result == .incomplete {
 			continue
 		}
@@ -135,26 +137,27 @@ fn usage_preference_score(usage MemoryUsage, flags vk.MemoryPropertyFlags) int {
 	device_uncached := has_memory_flags(flags, memory_flag(.device_uncached_bit_amd))
 	return match usage {
 		.automatic {
-			if device_local { 16 } else { 0 }
+			memory_score(device_local, 16)
 		}
 		.gpu_only {
-			if device_uncached { -4 } else { 0 }
+			memory_score(device_uncached, -4)
 		}
 		.upload {
-			(if host_coherent { 16 } else { 0 }) + (if device_local { 8 } else { 0 }) + (if host_cached {
-				2
-			} else {
-				0
-			}) - (if device_uncached { 4 } else { 0 })
+			memory_score(host_coherent, 16) + memory_score(device_local, 8) +
+				memory_score(host_cached, 2) + memory_score(device_uncached, -4)
 		}
 		.readback {
-			(if host_cached { 16 } else { 0 }) + (if host_coherent { 8 } else { 0 }) + (if device_local {
-				2
-			} else {
-				0
-			}) - (if device_uncached { 4 } else { 0 })
+			memory_score(host_cached, 16) + memory_score(host_coherent, 8) +
+				memory_score(device_local, 2) + memory_score(device_uncached, -4)
 		}
 	}
+}
+
+fn memory_score(condition bool, points int) int {
+	if condition {
+		return points
+	}
+	return 0
 }
 
 fn memory_preference_score(options AllocationOptions, flags vk.MemoryPropertyFlags) int {
@@ -209,15 +212,15 @@ fn ranked_memory_types(props vk.PhysicalDeviceMemoryProperties, type_bits u32, r
 			continue
 		}
 		choice := MemoryTypeChoice{
-			index: u32(index)
-			heap_index: memory_type.heapIndex
-			property_flags: memory_type.propertyFlags
-			heap_size: heap_size
-			heap_budget: budget
-			heap_usage: usage
+			index:            u32(index)
+			heap_index:       memory_type.heapIndex
+			property_flags:   memory_type.propertyFlags
+			heap_size:        heap_size
+			heap_budget:      budget
+			heap_usage:       usage
 			remaining_budget: remaining
-			within_budget: within_budget
-			budget_reported: reported
+			within_budget:    within_budget
+			budget_reported:  reported
 			preference_score: memory_preference_score(options, memory_type.propertyFlags)
 		}
 		mut inserted := false
@@ -264,8 +267,8 @@ fn (a &Allocator) heap_budget_snapshot() HeapBudgetSnapshot {
 	}
 	return HeapBudgetSnapshot{
 		reported: a.memory_budget_reported
-		budgets: budgets
-		usages: usages
+		budgets:  budgets
+		usages:   usages
 	}
 }
 
@@ -320,11 +323,11 @@ fn (mut a Allocator) rank_buffer_memory_types(type_bits u32, request_size u64, o
 		return a.rank_memory_types(type_bits, request_size, options)
 	}
 	return a.rank_memory_types(type_bits, request_size, AllocationOptions{
-		usage: options.usage
-		required_flags: options.required_flags
+		usage:           options.usage
+		required_flags:  options.required_flags
 		preferred_flags: options.preferred_flags
-		avoided_flags: options.avoided_flags
-		budget_policy: .prefer_within
+		avoided_flags:   options.avoided_flags
+		budget_policy:   .prefer_within
 	})
 }
 
@@ -335,22 +338,22 @@ pub fn (a &Allocator) memory_heaps() []MemoryHeapStats {
 	snapshot := a.heap_budget_snapshot()
 	mut heaps := []MemoryHeapStats{cap: int(a.props.memoryHeapCount)}
 	for heap_index in 0 .. int(a.props.memoryHeapCount) {
-		committed, used := if isnil(a.planner) {
-			u64(0), u64(0)
-		} else {
-			a.planner.heap_stats(&a.props, u32(heap_index))
+		mut committed := u64(0)
+		mut used := u64(0)
+		if !isnil(a.planner) {
+			committed, used = a.planner.heap_stats(&a.props, u32(heap_index))
 		}
 		budget, usage, reported := heap_budget_values(a.props, u32(heap_index), snapshot)
 		heaps << MemoryHeapStats{
-			heap_index: u32(heap_index)
-			size: u64(a.props.memoryHeaps[heap_index].size)
-			budget: budget
-			usage: usage
-			remaining_budget: if usage < budget { budget - usage } else { u64(0) }
+			heap_index:          u32(heap_index)
+			size:                u64(a.props.memoryHeaps[heap_index].size)
+			budget:              budget
+			usage:               usage
+			remaining_budget:    if usage < budget { budget - usage } else { u64(0) }
 			allocator_committed: committed
-			allocator_used: used
-			device_local: (a.props.memoryHeaps[heap_index].flags & u32(vk.MemoryHeapFlagBits.device_local)) != 0
-			budget_reported: reported
+			allocator_used:      used
+			device_local:        (a.props.memoryHeaps[heap_index].flags & u32(vk.MemoryHeapFlagBits.device_local)) != 0
+			budget_reported:     reported
 		}
 	}
 	return heaps

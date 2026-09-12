@@ -11,28 +11,31 @@ fn require_success(result vk.Result, operation string) ! {
 
 fn first_physical_device(instance vk.Instance) !vk.PhysicalDevice {
 	mut count := u32(0)
-	require_success(vk.enumerate_physical_devices(instance, &count, unsafe { nil }), 'enumerate physical device count')!
+	require_success(vk.enumerate_physical_devices(instance, &count, unsafe { nil }),
+		'enumerate physical device count')!
 	if count == 0 {
 		return error('no Vulkan physical device is available')
 	}
 	mut devices := unsafe { []vk.PhysicalDevice{len: int(count)} }
-	require_success(vk.enumerate_physical_devices(instance, &count, devices.data), 'enumerate physical devices')!
+	require_success(vk.enumerate_physical_devices(instance, &count, devices.data),
+		'enumerate physical devices')!
 	return devices[0]
 }
 
 fn run() ! {
 	require_success(vk.initialize_loader(), 'initialize Vulkan loader')!
 	application_info := vk.ApplicationInfo{
-		pApplicationName: c'vkmemalloc suballocation example'
+		pApplicationName:   c'vkmemalloc suballocation example'
 		applicationVersion: 1
-		pEngineName: c'none'
-		apiVersion: vk.api_version_1_1
+		pEngineName:        c'none'
+		apiVersion:         vk.api_version_1_1
 	}
 	instance_info := vk.InstanceCreateInfo{
 		pApplicationInfo: &application_info
 	}
 	mut instance := vk.Instance(unsafe { nil })
-	require_success(vk.create_instance(&instance_info, unsafe { nil }, &instance), 'create Vulkan instance')!
+	require_success(vk.create_instance(&instance_info, unsafe { nil }, &instance),
+		'create Vulkan instance')!
 	defer {
 		vk.destroy_instance(instance, unsafe { nil })
 	}
@@ -47,26 +50,27 @@ fn run() ! {
 	mut priority := f32(1)
 	queue_info := vk.DeviceQueueCreateInfo{
 		queueFamilyIndex: 0
-		queueCount: 1
+		queueCount:       1
 		pQueuePriorities: &priority
 	}
 	device_info := vk.DeviceCreateInfo{
-		queueCreateInfoCount: 1
-		pQueueCreateInfos: &queue_info
-		enabledExtensionCount: u32(device_extensions.len)
+		queueCreateInfoCount:    1
+		pQueueCreateInfos:       &queue_info
+		enabledExtensionCount:   u32(device_extensions.len)
 		ppEnabledExtensionNames: device_extensions.data
 	}
 	mut device := vk.Device(unsafe { nil })
-	require_success(vk.create_device(physical_device, &device_info, unsafe { nil }, &device), 'create Vulkan device')!
+	require_success(vk.create_device(physical_device, &device_info, unsafe { nil }, &device),
+		'create Vulkan device')!
 	defer {
 		vk.destroy_device(device, unsafe { nil })
 	}
 	vk.load_device_commands(device)
 
 	mut allocator := vma.new(vma.AllocatorCreateInfo{
-		physical_device: physical_device
-		device: device
-		preferred_block_size: 4096
+		physical_device:       physical_device
+		device:                device
+		preferred_block_size:  4096
 		memory_budget_enabled: memory_budget_supported
 	})
 	defer {
@@ -74,8 +78,8 @@ fn run() ! {
 	}
 
 	buffer_info := vk.BufferCreateInfo{
-		size: 512
-		usage: u32(vk.BufferUsageFlagBits.transfer_src)
+		size:        512
+		usage:       u32(vk.BufferUsageFlagBits.transfer_src)
 		sharingMode: .exclusive
 	}
 	mut first_buffer := vk.Buffer(unsafe { nil })
@@ -118,7 +122,8 @@ fn run() ! {
 	mut first_mapped := voidptr(unsafe { nil })
 	mut second_mapped := voidptr(unsafe { nil })
 	require_success(allocator.map(mut first_allocation, &first_mapped), 'map first staging buffer')!
-	require_success(allocator.map(mut second_allocation, &second_mapped), 'map second staging buffer')!
+	require_success(allocator.map(mut second_allocation, &second_mapped),
+		'map second staging buffer')!
 	unsafe {
 		*(&u8(first_mapped)) = 21
 		*(&u8(second_mapped)) = 42
@@ -131,19 +136,19 @@ fn run() ! {
 	println('shared staging suballocations mapped concurrently')
 
 	image_info := vk.ImageCreateInfo{
-		imageType: ._2d
-		format: .r8g8b8a8_unorm
-		extent: vk.Extent3D{
-			width: 16
+		imageType:     ._2d
+		format:        .r8g8b8a8_unorm
+		extent:        vk.Extent3D{
+			width:  16
 			height: 16
-			depth: 1
+			depth:  1
 		}
-		mipLevels: 1
-		arrayLayers: 1
-		samples: ._1
-		tiling: .optimal
-		usage: u32(vk.ImageUsageFlagBits.transfer_dst)
-		sharingMode: .exclusive
+		mipLevels:     1
+		arrayLayers:   1
+		samples:       ._1
+		tiling:        .optimal
+		usage:         u32(vk.ImageUsageFlagBits.transfer_dst)
+		sharingMode:   .exclusive
 		initialLayout: .undefined
 	}
 	mut image := vk.Image(unsafe { nil })

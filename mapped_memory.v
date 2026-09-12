@@ -28,7 +28,7 @@ fn normalize_mapped_range(allocation_offset u64, allocation_size u64, block_size
 	}
 	return NormalizedMappedRange{
 		offset: start
-		size: if rounded_end >= block_size {
+		size:   if rounded_end >= block_size {
 			vk.whole_size
 		} else {
 			rounded_end - start
@@ -41,11 +41,12 @@ fn (a &Allocator) mapped_range(alloc_info AllocationInfo, relative_offset u64, s
 		|| !has_memory_flags(alloc_info.property_flags, memory_flag(.host_visible)) {
 		return none
 	}
-	normalized := normalize_mapped_range(alloc_info.offset, alloc_info.size, alloc_info.block_size, relative_offset, size, a.non_coherent_atom_size) or { return none }
+	normalized := normalize_mapped_range(alloc_info.offset, alloc_info.size, alloc_info.block_size,
+		relative_offset, size, a.non_coherent_atom_size) or { return none }
 	return vk.MappedMemoryRange{
 		memory: vk.DeviceMemory(alloc_info.memory)
 		offset: normalized.offset
-		size: normalized.size
+		size:   normalized.size
 	}
 }
 

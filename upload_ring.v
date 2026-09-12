@@ -37,7 +37,7 @@ pub:
 mut:
 	allocator &Allocator = unsafe { nil }
 	backing   AllocationInfo
-	mapped    voidptr = unsafe { nil }
+	mapped    voidptr               = unsafe { nil }
 	ranges    &memory.RingAllocator = unsafe { nil }
 	destroyed bool
 }
@@ -54,8 +54,8 @@ pub fn new_upload_ring(mut allocator Allocator, capacity u64) !&UploadRing {
 		}
 	}
 	buffer_info := vk.BufferCreateInfo{
-		size: capacity
-		usage: u32(vk.BufferUsageFlagBits.transfer_src)
+		size:        capacity
+		usage:       u32(vk.BufferUsageFlagBits.transfer_src)
 		sharingMode: .exclusive
 	}
 	mut buffer := vk.Buffer(unsafe { nil })
@@ -80,20 +80,21 @@ pub fn new_upload_ring_with_options(mut allocator Allocator, capacity u64, optio
 		}
 	}
 	buffer_info := vk.BufferCreateInfo{
-		size: capacity
-		usage: u32(vk.BufferUsageFlagBits.transfer_src)
+		size:        capacity
+		usage:       u32(vk.BufferUsageFlagBits.transfer_src)
 		sharingMode: .exclusive
 	}
 	effective_options := AllocationOptions{
-		usage: options.usage
-		required_flags: options.required_flags | memory_flag(.host_visible)
+		usage:           options.usage
+		required_flags:  options.required_flags | memory_flag(.host_visible)
 		preferred_flags: options.preferred_flags
-		avoided_flags: options.avoided_flags
-		budget_policy: options.budget_policy
+		avoided_flags:   options.avoided_flags
+		budget_policy:   options.budget_policy
 	}
 	mut buffer := vk.Buffer(unsafe { nil })
 	mut backing := AllocationInfo{}
-	result := allocator.create_dedicated_buffer_with_options(&buffer_info, effective_options, &buffer, mut backing)
+	result := allocator.create_dedicated_buffer_with_options(&buffer_info, effective_options,
+		&buffer, mut backing)
 	if result != .success {
 		return error('could not create upload buffer: ${result}')
 	}
@@ -110,12 +111,12 @@ fn finish_upload_ring(mut allocator Allocator, capacity u64, buffer vk.Buffer, i
 		return error('could not map upload buffer: ${map_result}')
 	}
 	return &UploadRing{
-		buffer: buffer
-		capacity: capacity
+		buffer:    buffer
+		capacity:  capacity
 		allocator: allocator
-		backing: backing
-		mapped: mapped
-		ranges: memory.new_ring_allocator(capacity)
+		backing:   backing
+		mapped:    mapped
+		ranges:    memory.new_ring_allocator(capacity)
 	}
 }
 
@@ -128,11 +129,11 @@ pub fn (mut ring UploadRing) allocate(size u64, alignment u64) !UploadSlice {
 	allocation := ring.ranges.allocate(size, alignment)!
 	data := unsafe { voidptr(usize(ring.mapped) + usize(allocation.offset)) }
 	return UploadSlice{
-		owner: ring
+		owner:      ring
 		allocation: allocation
-		offset: allocation.offset
-		size: allocation.size
-		data: data
+		offset:     allocation.offset
+		size:       allocation.size
+		data:       data
 	}
 }
 
@@ -180,13 +181,13 @@ pub fn (ring &UploadRing) stats() UploadRingStats {
 	}
 	stats := ring.ranges.stats()
 	return UploadRingStats{
-		capacity: stats.capacity
-		used: stats.used
-		payload: stats.payload
-		padding: stats.padding
-		free: stats.free
-		peak_used: stats.peak_used
-		allocation_count: stats.allocation_count
+		capacity:                stats.capacity
+		used:                    stats.used
+		payload:                 stats.payload
+		padding:                 stats.padding
+		free:                    stats.free
+		peak_used:               stats.peak_used
+		allocation_count:        stats.allocation_count
 		largest_contiguous_free: stats.largest_contiguous_free
 	}
 }
