@@ -30,6 +30,8 @@ jobs:
           ref: v1.4.0
           path: source/modules/antono2/memory
       - uses: prantlf/setup-v-action@v4
+        with:
+          version: 0.5.2
       - name: Install Vulkan development library
         run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev mesa-vulkan-drivers
       - name: Check formatting
@@ -38,7 +40,7 @@ jobs:
       - name: Vet allocator sources
         working-directory: source/modules/antono2/vkmemalloc
         # V 0.5.2's directory-mode vet parser does not accept aliased imports.
-        run: v vet block_pool.v block_pool_test.v upload_ring.v upload_ring_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
+        run: v vet block_pool.v block_pool_test.v mapped_memory.v mapped_memory_test.v memory_policy.v memory_policy_test.v upload_ring.v upload_ring_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
       - name: Run allocator tests
         working-directory: source/modules/antono2/vkmemalloc
         run: v run setup.vsh --check
@@ -48,3 +50,31 @@ jobs:
           lavapipe_icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
           test -n "$lavapipe_icd"
           VK_ICD_FILENAMES="$lavapipe_icd" v run examples/buffer_suballocation
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    env:
+      VMODULES: ${{ github.workspace }}/source/modules
+      VULKAN_SDK: /usr
+      ASAN_OPTIONS: detect_leaks=0
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: source/modules/antono2/vkmemalloc
+      - uses: actions/checkout@v7
+        with:
+          repository: antono2/vulkan
+          path: source/modules/antono2/vulkan
+      - uses: actions/checkout@v7
+        with:
+          repository: antono2/memory
+          ref: v1.4.0
+          path: source/modules/antono2/memory
+      - uses: prantlf/setup-v-action@v4
+        with:
+          version: 0.5.2
+      - name: Install native compiler and Vulkan development library
+        run: sudo apt-get update && sudo apt-get install -y clang libvulkan-dev libvulkan-volk-dev
+      - name: Run CPU policy tests with AddressSanitizer and UndefinedBehaviorSanitizer
+        working-directory: source/modules/antono2/vkmemalloc
+        run: v -cc clang -cflags -fsanitize=address,undefined -cflags -fno-omit-frame-pointer -ldflags -fsanitize=address,undefined test .

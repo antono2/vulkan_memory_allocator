@@ -1,6 +1,7 @@
 module vkmemalloc
 
 import antono2.memory
+import antono2.vulkan as vk
 
 struct BlockReservation {
 	owner      voidptr
@@ -51,7 +52,7 @@ fn new_memory_block_pool(default_block_size u64, max_blocks int) !&MemoryBlockPo
 	}
 	return &MemoryBlockPool{
 		default_block_size: default_block_size
-		max_blocks:         max_blocks
+		max_blocks: max_blocks
 	}
 }
 
@@ -75,6 +76,38 @@ fn (pool &MemoryBlockPool) block_is_dedicated(block_id u64) ?bool {
 		}
 	}
 	return none
+}
+
+fn (pool &MemoryBlockPool) block_capacity(block_id u64) ?u64 {
+	for block in pool.blocks {
+		if block.id == block_id {
+			return block.capacity
+		}
+	}
+	return none
+}
+
+fn (pool &MemoryBlockPool) block_memory_type(block_id u64) ?u32 {
+	for block in pool.blocks {
+		if block.id == block_id {
+			return block.memory_type
+		}
+	}
+	return none
+}
+
+fn (pool &MemoryBlockPool) heap_stats(props &vk.PhysicalDeviceMemoryProperties, heap_index u32) (u64, u64) {
+	mut committed := u64(0)
+	mut used := u64(0)
+	for block in pool.blocks {
+		if block.memory_type >= props.memoryTypeCount
+			|| props.memoryTypes[block.memory_type].heapIndex != heap_index {
+			continue
+		}
+		committed += block.capacity
+		used += block.ranges.stats().used
+	}
+	return committed, used
 }
 
 fn (pool &MemoryBlockPool) recommended_block_size(requested_size u64) !u64 {
@@ -105,11 +138,11 @@ fn (mut pool MemoryBlockPool) add_block_with_policy(memory_type u32, capacity u6
 	}
 	id := pool.next_block_id()
 	pool.blocks << MemoryBlock{
-		id:          id
+		id: id
 		memory_type: memory_type
-		capacity:    capacity
-		dedicated:   dedicated
-		ranges:      memory.new_range_allocator(capacity)
+		capacity: capacity
+		dedicated: dedicated
+		ranges: memory.new_range_allocator(capacity)
 	}
 	return id
 }
@@ -130,12 +163,12 @@ fn (mut pool MemoryBlockPool) reserve(memory_type u32, size u64, alignment u64) 
 		}
 		if allocation := block.ranges.allocate(size, alignment) {
 			return BlockReservation{
-				owner:       pool
-				block_id:    block.id
-				allocation:  allocation
+				owner: pool
+				block_id: block.id
+				allocation: allocation
 				memory_type: memory_type
-				offset:      allocation.offset
-				size:        allocation.size
+				offset: allocation.offset
+				size: allocation.size
 			}
 		}
 	}
@@ -155,12 +188,12 @@ fn (mut pool MemoryBlockPool) reserve_from_block(block_id u64, size u64, alignme
 		}
 		allocation := block.ranges.allocate(size, alignment)!
 		return BlockReservation{
-			owner:       pool
-			block_id:    block.id
-			allocation:  allocation
+			owner: pool
+			block_id: block.id
+			allocation: allocation
 			memory_type: block.memory_type
-			offset:      allocation.offset
-			size:        allocation.size
+			offset: allocation.offset
+			size: allocation.size
 		}
 	}
 	return error('memory block does not exist')
@@ -248,14 +281,14 @@ fn (pool &MemoryBlockPool) collect_stats(memory_type u32, filter_by_memory_type 
 		}
 	}
 	return BlockPoolStats{
-		block_count:        block_count
-		allocation_count:   allocation_count
-		committed:          committed
-		used:               used
-		free:               committed - used
-		free_range_count:   free_range_count
+		block_count: block_count
+		allocation_count: allocation_count
+		committed: committed
+		used: used
+		free: committed - used
+		free_range_count: free_range_count
 		largest_free_range: largest_free_range
-		empty_block_count:  empty_block_count
+		empty_block_count: empty_block_count
 	}
 }
 
