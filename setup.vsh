@@ -2,7 +2,6 @@
 
 // Delegates native Vulkan preparation to antono2.vulkan, then installs and
 // verifies the allocator module.
-
 import os
 
 fn run(command string) ! {
@@ -17,7 +16,8 @@ fn run(command string) ! {
 }
 
 fn main() {
-	if os.args.len > 2 || (os.args.len == 2 && os.args[1] !in ['--install', '--check', '-h', '--help']) {
+	if os.args.len > 2
+		|| (os.args.len == 2 && os.args[1] !in ['--install', '--check', '-h', '--help']) {
 		eprintln('Usage: v run setup.vsh [--install|--check]')
 		exit(2)
 	}
@@ -37,9 +37,8 @@ fn main() {
 	mode := if install { '--install' } else { '--check' }
 	run('v run ${os.quoted_path(vulkan_setup)} ${mode}') or { panic(err) }
 	$if windows {
-		vulkan_sdk := os.execute(
-			'powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable(\'VULKAN_SDK\', \'Machine\')"',
-		)
+		vulkan_sdk :=
+			os.execute('powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable(\'VULKAN_SDK\', \'Machine\')"')
 		if vulkan_sdk.exit_code == 0 && vulkan_sdk.output.trim_space() != '' {
 			os.setenv('VULKAN_SDK', vulkan_sdk.output.trim_space(), true)
 		}
