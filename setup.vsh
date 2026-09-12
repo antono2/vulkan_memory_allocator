@@ -37,7 +37,9 @@ fn main() {
 	mode := if install { '--install' } else { '--check' }
 	run('v run ${os.quoted_path(vulkan_setup)} ${mode}') or { panic(err) }
 	$if windows {
-		vulkan_sdk := os.execute('powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable(\'VULKAN_SDK\', \'Machine\')"')
+		vulkan_sdk := os.execute(
+			'powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable(\'VULKAN_SDK\', \'Machine\')"',
+		)
 		if vulkan_sdk.exit_code == 0 && vulkan_sdk.output.trim_space() != '' {
 			os.setenv('VULKAN_SDK', vulkan_sdk.output.trim_space(), true)
 		}
