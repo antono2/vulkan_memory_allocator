@@ -55,6 +55,12 @@ v run setup.vsh
 
 Use `v run setup.vsh --check` for a read-only diagnostic pass.
 
+Windows 10/11 x64 is a tested target. The setup delegates Vulkan SDK discovery
+to `antono2.vulkan`, reuses an existing compatible `VULKAN_SDK`, and does not
+replace an installed SDK. CI runs the complete allocator test suite on Windows
+Server 2022 with MSVC and SwiftShader. Linux CI additionally runs the real
+Vulkan buffer, image, and sustained-allocation example workloads.
+
 The allocator uses the production-hardened v1.4 release of
 [`antono2.memory`](https://github.com/antono2/memory), specifically
 `memory.RangeAllocator`,
