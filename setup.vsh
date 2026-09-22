@@ -27,7 +27,7 @@ fn main() {
 	}
 	install := os.args.len == 1 || os.args[1] == '--install'
 	if install {
-		run('v install antono2.vulkan') or { panic(err) }
+		run('v install antono2.vulkan@v2.0.0') or { panic(err) }
 	}
 	vulkan_setup := os.join_path(os.vmodules_dir(), 'antono2', 'vulkan', 'setup.vsh')
 	if !os.is_file(vulkan_setup) {
