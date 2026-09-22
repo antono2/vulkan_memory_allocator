@@ -18,19 +18,20 @@ jobs:
       VULKAN_SDK: /usr
       VK_INSTANCE_LAYERS: VK_LAYER_KHRONOS_validation
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
+          ref: v2.0.0
           path: source/modules/antono2/vulkan
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/memory
           ref: v1.4.0
           path: source/modules/antono2/memory
-      - uses: prantlf/setup-v-action@v4
+      - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: 0.5.2
       - name: Install Vulkan development library
@@ -44,7 +45,9 @@ jobs:
         run: v vet block_pool.v block_pool_test.v block_pool_stress_test.v diagnostics.v diagnostics_test.v mapped_memory.v mapped_memory_test.v memory_policy.v memory_policy_test.v upload_ring.v upload_ring_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
       - name: Run allocator tests
         working-directory: source/modules/antono2/vkmemalloc
-        run: v run setup.vsh --check
+        run: |
+          v -cc gcc test .
+          v -cc tcc test .
       - name: Run Vulkan suballocation smoke test
         working-directory: source/modules/antono2/vkmemalloc
         run: |
@@ -69,19 +72,20 @@ jobs:
     env:
       VMODULES: ${{ github.workspace }}/source/modules
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
+          ref: v2.0.0
           path: source/modules/antono2/vulkan
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/memory
           ref: v1.4.0
           path: source/modules/antono2/memory
-      - uses: prantlf/setup-v-action@v4
+      - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: 0.5.2
       - name: Install Vulkan SDK and SwiftShader test artifacts
@@ -122,6 +126,41 @@ jobs:
           Enter-VsDevShell -VsInstallPath $InstallPath -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
           v -cc msvc test .
 
+  linux-v-master:
+    name: Advisory current V master and Vulkan master
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    env:
+      VMODULES: ${{ github.workspace }}/source/modules
+      VULKAN_SDK: /usr
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: source/modules/antono2/vkmemalloc
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: antono2/vulkan
+          ref: master
+          path: source/modules/antono2/vulkan
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: antono2/memory
+          ref: v1.4.0
+          path: source/modules/antono2/memory
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: vlang/v
+          ref: master
+          path: toolchain/v
+      - name: Build current V master
+        run: |
+          make -C toolchain/v
+          echo "$GITHUB_WORKSPACE/toolchain/v" >> "$GITHUB_PATH"
+      - run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev
+      - name: Test with V3 and GCC
+        working-directory: source/modules/antono2/vkmemalloc
+        run: v -cc gcc test .
+
   test:
     if: always()
     needs: [linux, windows]
@@ -142,19 +181,20 @@ jobs:
       VULKAN_SDK: /usr
       ASAN_OPTIONS: detect_leaks=0
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
+          ref: v2.0.0
           path: source/modules/antono2/vulkan
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/memory
           ref: v1.4.0
           path: source/modules/antono2/memory
-      - uses: prantlf/setup-v-action@v4
+      - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: 0.5.2
       - name: Install native compiler and Vulkan development library
