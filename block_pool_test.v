@@ -1,3 +1,5 @@
+// Checks block selection, alignment, dedicated isolation, and release coalescing.
+// Rejects stale or forged reservations using CPU-only allocation metadata.
 module vkmemalloc
 
 fn test_block_pool_validates_configuration() {

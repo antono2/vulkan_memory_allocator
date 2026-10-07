@@ -1,3 +1,5 @@
+// Owns Vulkan memory blocks and binds buffers and images to tracked allocations.
+// Combines placement policy with block planning; callers synchronize use and resource teardown.
 module vkmemalloc
 
 import antono2.vulkan as vk

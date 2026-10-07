@@ -1,3 +1,5 @@
+// Collects allocator activity counters and an optional bounded lifecycle trace.
+// Snapshots describe allocation outcomes and block usage without reserving future capacity.
 module vkmemalloc
 
 import antono2.vulkan as vk

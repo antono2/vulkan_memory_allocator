@@ -1,3 +1,5 @@
+// Normalizes flush/invalidate ranges to Vulkan non-coherent atom boundaries.
+// Validates allocation ownership before issuing mapped-memory operations.
 module vkmemalloc
 
 import antono2.vulkan as vk

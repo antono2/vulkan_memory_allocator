@@ -1,3 +1,5 @@
+// Checks allocator slot reuse, allocation ownership, and resource-class selection.
+// Uses synthetic handles to exercise bookkeeping without creating a Vulkan device.
 module vkmemalloc
 
 import antono2.vulkan as vk

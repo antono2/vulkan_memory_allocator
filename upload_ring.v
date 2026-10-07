@@ -1,3 +1,5 @@
+// Provides persistently mapped staging slices backed by a FIFO range allocator.
+// Callers flush as needed and retire slices only after GPU reads have completed.
 module vkmemalloc
 
 import antono2.memory

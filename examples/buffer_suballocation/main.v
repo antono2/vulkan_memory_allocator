@@ -1,3 +1,5 @@
+// Runs real Vulkan buffer suballocation and mapped-upload smoke checks.
+// Requires a Vulkan device, including a software implementation such as Lavapipe.
 module main
 
 import antono2.vkmemalloc as vma
