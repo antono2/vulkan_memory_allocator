@@ -1,3 +1,5 @@
+// Exercises real Vulkan image sharing and resource-class isolation.
+// Requires a Vulkan device; checks separate buffer/image blocks and allocator cleanup.
 module main
 
 import antono2.vkmemalloc as vma

@@ -1,3 +1,5 @@
+// Runs sustained mixed allocation/release workloads across memory blocks.
+// Checks non-overlap, accounting, and per-memory-type invariants after each operation.
 module vkmemalloc
 
 fn assert_block_pool_invariants(pool &MemoryBlockPool, active []BlockReservation, committed u64) {

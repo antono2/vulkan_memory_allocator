@@ -1,3 +1,5 @@
+// Ranks Vulkan memory types using usage hints, required properties, and heap budgets.
+// Keeps selection policy separate from driver allocation and block reuse.
 module vkmemalloc
 
 import antono2.vulkan as vk

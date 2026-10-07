@@ -37,6 +37,22 @@ optimal-tiling images within their own class and honor driver requests for
 dedicated memory. Existing `MemType` APIs remain available for short examples;
 new applications should normally use `AllocationOptions`.
 
+## Source map
+
+| File | Responsibility |
+| --- | --- |
+| [memory_policy.v](memory_policy.v) | Memory-type ranking and heap-budget policy |
+| [block_pool.v](block_pool.v) | CPU-only placement, ownership, and resource-class isolation |
+| [vulkan_memory_allocator.v](vulkan_memory_allocator.v) | Vulkan block lifetime, resource creation/binding, mapping, and release |
+| [mapped_memory.v](mapped_memory.v) | Non-coherent flush/invalidate range validation |
+| [upload_ring.v](upload_ring.v) | Persistent staging storage and FIFO slice retirement |
+| [diagnostics.v](diagnostics.v) | Activity counters and bounded lifecycle events |
+
+The root `*_test.v` files exercise policy and bookkeeping with synthetic handles
+or host storage. The three programs under `examples/` exercise the Vulkan driver
+and require a hardware or software device. Use those examples to check resource
+integration in addition to the CPU tests.
+
 ## Install
 ```sh
 v install antono2.vkmemalloc

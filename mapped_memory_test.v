@@ -1,3 +1,5 @@
+// Checks atom-aligned mapped ranges, bounds rejection, and ownership validation.
+// Uses synthetic allocations for coherent-memory cases that need no driver calls.
 module vkmemalloc
 
 import antono2.vulkan as vk

@@ -1,3 +1,5 @@
+// Plans aligned suballocations by memory type and resource class without driver calls.
+// Tracks ownership tokens and dedicated blocks using antono2.memory range allocators.
 module vkmemalloc
 
 import antono2.memory

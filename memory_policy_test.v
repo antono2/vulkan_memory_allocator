@@ -1,3 +1,5 @@
+// Checks memory-type ranking and budget behavior with synthetic device properties.
+// Includes reuse of already committed blocks when a heap is over budget.
 module vkmemalloc
 
 import antono2.vulkan as vk

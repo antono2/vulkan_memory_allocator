@@ -1,3 +1,5 @@
+// Runs repeated buffer, image, and upload-ring workloads on a Vulkan device.
+// Checks allocation cleanup and diagnostics across sustained resource churn.
 module main
 
 import antono2.vkmemalloc as vma

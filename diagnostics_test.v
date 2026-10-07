@@ -1,3 +1,5 @@
+// Checks lifecycle counters and bounded trace retention with synthetic allocations.
+// Also verifies diagnostics when event tracing is disabled.
 module vkmemalloc
 
 import antono2.vulkan as vk
