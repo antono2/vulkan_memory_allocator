@@ -8,14 +8,14 @@ All notable changes to this project will be documented in this file.
   `create_suballocated_image_with_options()` APIs while retaining dedicated
   allocation in the existing image APIs.
 - Separate reusable blocks by Vulkan memory type and resource class so buffers,
-  linear images, and optimal images never share a block or create a
+  linear images and optimal images never share a block or create a
   `bufferImageGranularity` boundary.
 - Query Vulkan 1.1 dedicated-allocation requirements and honor both required and
   preferred dedicated memory; conservatively use dedicated memory on Vulkan
   1.0.
-- Expose the resource class in allocations, events, and class-filtered
+- Expose the resource class in allocations, events and class-filtered
   fragmentation statistics.
-- Reject sparse, disjoint, and DRM-format-modifier images in the ordinary image
+- Reject sparse, disjoint and DRM-format-modifier images in the ordinary image
   suballocation path, which cannot provide their specialized binding rules.
 - Add CPU isolation/ownership tests and a lavapipe example proving real optimal
   image sharing alongside separate linear-image and buffer blocks; run every
@@ -23,37 +23,37 @@ All notable changes to this project will be documented in this file.
 
 ## 2.5.0 - 2026-09-12
 
-- Add cumulative allocation, fallback, block-reuse, trim, and high-water-mark
+- Add cumulative allocation, fallback, block-reuse, trim and high-water-mark
   counters alongside current allocator statistics.
 - Add an opt-in bounded lifecycle event trace with deterministic sequence
-  numbers, chronological snapshots, overwrite accounting, and resettable
+  numbers, chronological snapshots, overwrite accounting and resettable
   measurement windows.
 - Add a 30,000-operation deterministic block-planner workload that continuously
-  verifies ownership, overlap, accounting, memory-type isolation, and complete
+  verifies ownership, overlap, accounting, memory-type isolation and complete
   coalescing.
 - Extend the lavapipe integration example with 1,536 real Vulkan buffer
-  allocations, mapped writes, flushes, fragmented reuse, and trace validation.
+  allocations, mapped writes, flushes, fragmented reuse and trace validation.
 - Keep tracing disabled by default and retain the allocator's existing external
   synchronization contract.
 
 ## 2.4.0 - 2026-09-12
 
 - Add explainable, deterministic memory-type ranking for GPU-only, upload,
-  readback, and automatic usage, with required, preferred, and avoided flags.
-- Add optional `VK_EXT_memory_budget` discovery, refresh, selection policy, and
+  readback and automatic usage, with required, preferred and avoided flags.
+- Add optional `VK_EXT_memory_budget` discovery, refresh, selection policy and
   per-heap diagnostics with a portable allocator-commitment fallback.
-- Add policy-based raw, buffer, dedicated-buffer, and image allocation APIs
+- Add policy-based raw, buffer, dedicated-buffer and image allocation APIs
   while preserving the existing `MemType` entry points.
 - Retry allocation after trimming empty blocks and fall through to compatible
   lower-ranked memory types on host/device out-of-memory results.
-- Record the selected heap, property flags, and containing block size in every
+- Record the selected heap, property flags and containing block size in every
   allocation.
-- Add checked `flush`, `flush_range`, `invalidate`, and `invalidate_range`
+- Add checked `flush`, `flush_range`, `invalidate` and `invalidate_range`
   helpers aligned to the device's `nonCoherentAtomSize`.
 - Add policy-selected upload rings and slice-level flush/invalidate helpers
   while retaining the coherent default constructor.
 - Document the allocator from a high-level policy/planning/ownership viewpoint
-  and exercise policy selection, live budgets, and flushing with lavapipe.
+  and exercise policy selection, live budgets and flushing with lavapipe.
 
 ## 2.3.2 - 2026-09-12
 
@@ -64,7 +64,7 @@ All notable changes to this project will be documented in this file.
 
 ## 2.3.1 - 2026-09-11
 
-- Expose global and per-memory-type free-range, largest-contiguous-range, and
+- Expose global and per-memory-type free-range, largest-contiguous-range and
   empty-block diagnostics without changing allocation policy.
 
 ## 2.3.0 - 2026-09-11
@@ -92,7 +92,7 @@ All notable changes to this project will be documented in this file.
 - Free dedicated allocation blocks immediately on release while retaining
   reusable shared buffer blocks.
 - Add `UploadRing`, a dedicated persistently mapped staging buffer with aligned
-  FIFO allocation, checked retirement, wraparound, and occupancy statistics.
+  FIFO allocation, checked retirement, wraparound and occupancy statistics.
 
 ## 2.0.0 - 2026-09-10
 
@@ -102,5 +102,5 @@ All notable changes to this project will be documented in this file.
 - Add configurable preferred block size and maximum block count.
 - Add allocator commitment and occupancy statistics.
 - Add explicit empty-block trimming while retaining blocks for reuse by default.
-- Validate allocation ownership before mapping, unmapping, or releasing ranges.
+- Validate allocation ownership before mapping, unmapping or releasing ranges.
 - Add deterministic CPU-only policy tests and a real Vulkan buffer smoke test.

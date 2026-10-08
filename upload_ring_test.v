@@ -1,4 +1,4 @@
-// Checks staging-slice alignment, wraparound, FIFO retirement, and ownership.
+// Checks staging-slice alignment, wraparound, FIFO retirement and ownership.
 // Uses host byte storage instead of a real mapped Vulkan buffer.
 module vkmemalloc
 

@@ -689,13 +689,13 @@ fn (mut a Allocator) create_image_with_options_policy(image_info &vk.ImageCreate
 	return result
 }
 
-// create_buffer creates a buffer, suballocates compatible memory, and binds it.
+// create_buffer creates a buffer, suballocates compatible memory and binds it.
 pub fn (mut a Allocator) create_buffer(buffer_info &vk.BufferCreateInfo, type MemType, buffer &vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
 	return a.create_buffer_with_policy(buffer_info, type, false, buffer, mut alloc_info)
 }
 
 // create_dedicated_buffer creates a buffer with an isolated memory block. Use
-// it for persistent mapping, external memory, or explicit lifetime isolation.
+// it for persistent mapping, external memory or explicit lifetime isolation.
 pub fn (mut a Allocator) create_dedicated_buffer(buffer_info &vk.BufferCreateInfo, type MemType, buffer &vk.Buffer, mut alloc_info AllocationInfo) vk.Result {
 	return a.create_buffer_with_policy(buffer_info, type, true, buffer, mut alloc_info)
 }
@@ -789,7 +789,7 @@ pub fn (mut a Allocator) create_image_with_options(image_info &vk.ImageCreateInf
 }
 
 // create_suballocated_image creates an ordinary linear- or optimal-tiling
-// image, shares memory only with images in the same resource class, and binds
+// image, shares memory only with images in the same resource class and binds
 // it. A Vulkan 1.1+ driver request for dedicated memory is always honored;
 // Vulkan 1.0 conservatively falls back to a dedicated allocation.
 pub fn (mut a Allocator) create_suballocated_image(image_info &vk.ImageCreateInfo, type MemType, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
@@ -797,7 +797,7 @@ pub fn (mut a Allocator) create_suballocated_image(image_info &vk.ImageCreateInf
 }
 
 // create_suballocated_image_with_options is the policy-based counterpart of
-// create_suballocated_image(). Sparse, disjoint, and DRM-format-modifier images
+// create_suballocated_image(). Sparse, disjoint and DRM-format-modifier images
 // require specialized binding paths and return error_feature_not_present here.
 pub fn (mut a Allocator) create_suballocated_image_with_options(image_info &vk.ImageCreateInfo, options AllocationOptions, image &vk.Image, mut alloc_info AllocationInfo) vk.Result {
 	return a.create_image_with_options_policy(image_info, options, false, image, mut alloc_info)
@@ -959,7 +959,7 @@ fn (mut a Allocator) trim_empty_blocks_filtered(heap_index u32, filter_by_heap b
 	return removed
 }
 
-// AllocatorStats reports Vulkan block commitment, live suballocation use, and
+// AllocatorStats reports Vulkan block commitment, live suballocation use and
 // free-range fragmentation. largest_free_range is the largest raw contiguous
 // range and does not account for the alignment of a future request.
 pub struct AllocatorStats {
@@ -992,7 +992,7 @@ pub fn (a &Allocator) stats() AllocatorStats {
 	}
 }
 
-// stats_for_memory_type returns commitment, occupancy, and fragmentation for
+// stats_for_memory_type returns commitment, occupancy and fragmentation for
 // one Vulkan memory-type index. Use this instead of global stats when
 // diagnosing whether compatible blocks can satisfy a resource request.
 pub fn (a &Allocator) stats_for_memory_type(memory_type u32) AllocatorStats {
