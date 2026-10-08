@@ -1,4 +1,4 @@
-// Checks block selection, alignment, dedicated isolation, and release coalescing.
+// Checks block selection, alignment, dedicated isolation and release coalescing.
 // Rejects stale or forged reservations using CPU-only allocation metadata.
 module vkmemalloc
 

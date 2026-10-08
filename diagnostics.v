@@ -231,7 +231,7 @@ fn (mut a Allocator) note_block_trimmed(memory_type u32, heap_index u32, resourc
 }
 
 // diagnostics returns a consistent single-threaded snapshot of current state,
-// lifetime counters, and bounded-trace retention. Like the allocator itself,
+// lifetime counters and bounded-trace retention. Like the allocator itself,
 // callers must externally synchronize this query with concurrent mutations.
 pub fn (a &Allocator) diagnostics() AllocatorDiagnostics {
 	return AllocatorDiagnostics{

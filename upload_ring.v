@@ -17,7 +17,7 @@ pub:
 }
 
 // UploadRingStats describes current payload, alignment/wrap padding, free
-// space, and peak occupancy without exposing the underlying policy type.
+// space and peak occupancy without exposing the underlying policy type.
 pub struct UploadRingStats {
 pub:
 	capacity                u64
@@ -176,7 +176,7 @@ pub fn (ring &UploadRing) invalidate(slice UploadSlice) vk.Result {
 	return ring.allocator.invalidate_range(ring.backing, slice.offset, slice.size)
 }
 
-// stats returns current payload, padding, free-space, and peak ring occupancy.
+// stats returns current payload, padding, free-space and peak ring occupancy.
 pub fn (ring &UploadRing) stats() UploadRingStats {
 	if ring.destroyed {
 		return UploadRingStats{}
@@ -194,7 +194,7 @@ pub fn (ring &UploadRing) stats() UploadRingStats {
 	}
 }
 
-// destroy invalidates all slices, unmaps and destroys the buffer, and releases
+// destroy invalidates all slices, unmaps and destroys the buffer and releases
 // its dedicated memory. The allocator itself remains usable.
 pub fn (mut ring UploadRing) destroy() bool {
 	if ring.destroyed {

@@ -1,4 +1,4 @@
-// Ranks Vulkan memory types using usage hints, required properties, and heap budgets.
+// Ranks Vulkan memory types using usage hints, required properties and heap budgets.
 // Keeps selection policy separate from driver allocation and block reuse.
 module vkmemalloc
 

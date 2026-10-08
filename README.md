@@ -4,7 +4,7 @@
 
 This module provides small, explicit helpers for selecting Vulkan memory types,
 allocating and binding memory for buffers and images, mapping host-visible
-allocations, and suballocating shared `VkDeviceMemory` blocks.
+allocations and suballocating shared `VkDeviceMemory` blocks.
 
 Despite the repository name, this is not a binding to AMD's Vulkan Memory
 Allocator. It is a compact V-native allocator intended to remain understandable
@@ -15,17 +15,17 @@ enough for examples while avoiding one Vulkan allocation per resource.
 The allocator has four deliberately separate layers:
 
 1. **Policy** filters the memory types allowed by Vulkan, applies required
-   property flags, and ranks the remaining types for GPU-only, upload, or
+   property flags and ranks the remaining types for GPU-only, upload or
    readback use. The selected `MemoryTypeChoice` explains the heap, flags,
-   budget state, and score.
+   budget state and score.
 2. **Block planning** uses `antono2.memory.RangeAllocator` to place compatible
    resources into larger blocks. Every block has both a Vulkan memory type and
-   a resource class (`buffer`, `linear_image`, or `optimal_image`), so classes
+   a resource class (`buffer`, `linear_image` or `optimal_image`), so classes
    with a [`bufferImageGranularity`](https://docs.vulkan.org/spec/latest/chapters/limits.html#limits-bufferimagegranularity)
    boundary rule never become adjacent. This
    CPU-only layer is deterministic and independently tested.
-3. **Vulkan ownership** creates, maps, binds, and frees `VkDeviceMemory` while
-   `AllocationInfo` keeps the selected type, heap, properties, block size, and
+3. **Vulkan ownership** creates, maps, binds and frees `VkDeviceMemory` while
+   `AllocationInfo` keeps the selected type, heap, properties, block size and
    private ownership record together.
 4. **Observability** exposes current occupancy separately from cumulative
    activity and an optional bounded event trace. Normal applications pay no
@@ -42,8 +42,8 @@ new applications should normally use `AllocationOptions`.
 | File | Responsibility |
 | --- | --- |
 | [memory_policy.v](memory_policy.v) | Memory-type ranking and heap-budget policy |
-| [block_pool.v](block_pool.v) | CPU-only placement, ownership, and resource-class isolation |
-| [vulkan_memory_allocator.v](vulkan_memory_allocator.v) | Vulkan block lifetime, resource creation/binding, mapping, and release |
+| [block_pool.v](block_pool.v) | CPU-only placement, ownership and resource-class isolation |
+| [vulkan_memory_allocator.v](vulkan_memory_allocator.v) | Vulkan block lifetime, resource creation/binding, mapping and release |
 | [mapped_memory.v](mapped_memory.v) | Non-coherent flush/invalidate range validation |
 | [upload_ring.v](upload_ring.v) | Persistent staging storage and FIFO slice retirement |
 | [diagnostics.v](diagnostics.v) | Activity counters and bounded lifecycle events |
@@ -60,10 +60,9 @@ v install antono2.vkmemalloc
 
 VPM installs the Vulkan bindings and `antono2.memory` dependencies automatically.
 
-The Vulkan loader, headers, and a working GPU driver must also be installed.
+The Vulkan loader, headers and a working GPU driver must also be installed.
 
-For a fresh machine, install the native Vulkan prerequisites, V dependencies,
-and run the compile checks with one command:
+For a fresh machine, install the native Vulkan prerequisites and V dependencies, then run the compile checks with one command:
 
 ```sh
 v run setup.vsh
@@ -72,10 +71,10 @@ v run setup.vsh
 Use `v run setup.vsh --check` for a read-only diagnostic pass.
 
 Windows 10/11 x64 is a tested target. The setup delegates Vulkan SDK discovery
-to `antono2.vulkan`, reuses an existing compatible `VULKAN_SDK`, and does not
+to `antono2.vulkan`, reuses an existing compatible `VULKAN_SDK` and does not
 replace an installed SDK. CI runs the complete allocator test suite on Windows
 Server 2022 with MSVC and SwiftShader. Linux CI additionally runs the real
-Vulkan buffer, image, and sustained-allocation example workloads.
+Vulkan buffer, image and sustained-allocation example workloads.
 
 The allocator uses the production-hardened v1.4 release of
 [`antono2.memory`](https://github.com/antono2/memory), specifically
@@ -241,7 +240,7 @@ println('largest free range: ${stats.largest_free_range}')
 ```
 
 `committed` is memory obtained through `vkAllocateMemory`; `used` is the sum of
-live resource ranges. `free_range_count`, `largest_free_range`, and
+live resource ranges. `free_range_count`, `largest_free_range` and
 `empty_block_count` make cached capacity and external fragmentation visible.
 The largest range is measured before applying the alignment of a future
 request, so it is diagnostic rather than a guarantee that an allocation will
@@ -290,9 +289,9 @@ println('fallback attempts: ${diagnostics.counters.fallback_attempts}')
 ```
 
 Set `event_trace_capacity` in `AllocatorCreateInfo` to retain the latest
-allocation success, failure, release, and trim events. The storage is a bounded
+allocation success, failure, release and trim events. The storage is a bounded
 ring: old records are overwritten, `dropped_event_count` reports how many were
-replaced, and `recent_events()` always returns the retained records in
+replaced and `recent_events()` always returns the retained records in
 chronological order. Events use a monotonic sequence rather than a wall-clock
 timestamp so traces remain deterministic and callers can add the timing system
 appropriate to their application.
@@ -359,7 +358,7 @@ unsafe {
 if uploads.flush(slice) != .success {
 	return error('could not flush upload slice')
 }
-// Record a copy from uploads.buffer at slice.offset, submit it, and keep slice.
+// Record a copy from uploads.buffer at slice.offset, submit it and keep slice.
 
 // After the protecting fence or timeline value has completed:
 retired := uploads.retire(slice)
@@ -397,13 +396,13 @@ non-coherent memory correctly.
 - The allocator tracks at most 256 memory blocks by default. Each block can
   contain many suballocations.
 - The allocator is not internally synchronized. Externally synchronize access
-  when multiple threads can allocate, free, query diagnostics, or reset the
+  when multiple threads can allocate, free, query diagnostics or reset the
   diagnostic window concurrently. This keeps synchronization ownership with
   the renderer, which normally already serializes Vulkan device-memory calls.
 - Concurrently mapped allocations in one shared block reuse a single underlying
   Vulkan mapping. Each successful `map()` must have a matching `unmap()`.
 - The allocator does not relocate live resources. Image sharing is opt-in and
-  excludes sparse, disjoint, and DRM-format-modifier images.
+  excludes sparse, disjoint and DRM-format-modifier images.
 - Heap budgets guide selection but cannot enforce a process-wide or system-wide
   limit because other allocators can change process usage and external system
   activity can change the budget concurrently.
@@ -416,7 +415,7 @@ errors instead of assuming allocation succeeds.
 
 The bookkeeping tests do not require a Vulkan-capable GPU. They include a
 30,000-operation mixed-size, mixed-alignment workload across multiple memory
-types and continuously verify ownership, non-overlap, accounting, and
+types and continuously verify ownership, non-overlap, accounting and
 coalescing invariants:
 
 ```sh
@@ -425,7 +424,7 @@ v test .
 
 The introductory runnable example enables live budgets when available, creates
 two real policy-selected upload buffers, verifies that they share a memory
-block, maps and flushes them, creates a dedicated GPU-only image, and prints
+block, maps and flushes them, creates a dedicated GPU-only image and prints
 heap diagnostics and allocation counters. It also exercises a persistently
 mapped upload ring through wraparound and FIFO retirement:
 
@@ -435,7 +434,7 @@ v run examples/buffer_suballocation
 
 The [separate sustained workload](examples/stress/main.v) performs 1,536 real
 Vulkan buffer allocations with mapped writes, flushes, fragmenting
-release/refill cycles, bounded-trace wraparound, and final coalescing checks:
+release/refill cycles, bounded-trace wraparound and final coalescing checks:
 
 ```sh
 v run examples/stress

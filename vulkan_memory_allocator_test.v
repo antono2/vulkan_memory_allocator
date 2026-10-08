@@ -1,4 +1,4 @@
-// Checks allocator slot reuse, allocation ownership, and resource-class selection.
+// Checks allocator slot reuse, allocation ownership and resource-class selection.
 // Uses synthetic handles to exercise bookkeeping without creating a Vulkan device.
 module vkmemalloc
 
