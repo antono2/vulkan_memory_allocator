@@ -39,6 +39,9 @@ jobs:
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: 0.5.2
+      - name: Verify the declared dependency graph
+        shell: bash
+        run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
       - name: Install Vulkan development library
         run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev mesa-vulkan-drivers vulkan-validationlayers
       - name: Check formatting
@@ -93,6 +96,9 @@ jobs:
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: 0.5.2
+      - name: Verify the declared dependency graph
+        shell: bash
+        run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
       - name: Install Vulkan SDK and SwiftShader test artifacts
         shell: bash
         run: bash source/modules/antono2/vulkan/.github/scripts/setup-vulkan-ci.sh 1.4.309.0 v1.2
@@ -202,6 +208,9 @@ jobs:
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: 0.5.2
+      - name: Verify the declared dependency graph
+        shell: bash
+        run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
       - name: Install native compiler and Vulkan development library
         run: sudo apt-get update && sudo apt-get install -y clang libvulkan-dev libvulkan-volk-dev
       - name: Run CPU policy tests with AddressSanitizer and UndefinedBehaviorSanitizer
