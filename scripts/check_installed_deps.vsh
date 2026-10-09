@@ -20,7 +20,8 @@ fn check_module(root string, modules string, suffixes map[string]string, mut che
 		}
 		module_dir := os.join_path(modules, ...name.split('.'))
 		actual := os.execute('git -C ${os.quoted_path(module_dir)} rev-parse HEAD')
-		expected := os.execute('git -C ${os.quoted_path(module_dir)} rev-parse ${os.quoted_path('refs/tags/' + tag + '^{commit}')}')
+		expected := os.execute('git -C ${os.quoted_path(module_dir)} rev-parse ${os.quoted_path(
+			'refs/tags/' + tag + '^{commit}')}')
 		if actual.exit_code != 0 || expected.exit_code != 0 {
 			return error('Cannot verify installed ${name}@${tag}: ${actual.output}${expected.output}')
 		}
