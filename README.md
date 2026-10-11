@@ -451,3 +451,9 @@ v run examples/image_suballocation
 CI executes all examples against Mesa's CPU Vulkan implementation with the
 Khronos validation layer enabled, so it does not depend on a hardware GPU and
 binding-rule regressions remain visible.
+
+
+## Compatibility and diagnostics
+
+See [tested profiles and read-only diagnostics](docs/compatibility.md) for
+compiler/dependency versions, setup recovery actions and upgrade checks.

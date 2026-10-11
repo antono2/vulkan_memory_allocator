@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "v_release": "0.5.2",
+  "ci_sdk": "1.4.309.0",
+  "ci_runtime": "v1.2",
+  "modules": {
+    "vulkan": "v3.2.2",
+    "memory": "v1.4.0"
+  },
+  "build_tools": [
+    "git",
+    "cmake"
+  ]
+}
