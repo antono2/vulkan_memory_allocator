@@ -26,19 +26,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - name: Validate and resolve tested compatibility
+        id: compat
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
+          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
+          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
-          ref: v3.2.2
+          ref: ${{ steps.compat.outputs.module_vulkan }}
           path: source/modules/antono2/vulkan
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/memory
-          ref: v1.4.0
+          ref: ${{ steps.compat.outputs.module_memory }}
           path: source/modules/antono2/memory
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
-          version: 0.5.2
+          version: ${{ steps.compat.outputs.v_release }}
       - name: Verify the declared dependency graph
         shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
@@ -83,25 +91,33 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - name: Validate and resolve tested compatibility
+        id: compat
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
+          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
+          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
-          ref: v3.2.2
+          ref: ${{ steps.compat.outputs.module_vulkan }}
           path: source/modules/antono2/vulkan
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/memory
-          ref: v1.4.0
+          ref: ${{ steps.compat.outputs.module_memory }}
           path: source/modules/antono2/memory
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
-          version: 0.5.2
+          version: ${{ steps.compat.outputs.v_release }}
       - name: Verify the declared dependency graph
         shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
       - name: Install Vulkan SDK and SwiftShader test artifacts
         shell: bash
-        run: bash source/modules/antono2/vulkan/.github/scripts/setup-vulkan-ci.sh 1.4.309.0 v1.2
+        run: bash source/modules/antono2/vulkan/.github/scripts/setup-vulkan-ci.sh ${{ steps.compat.outputs.ci_sdk }} ${{ steps.compat.outputs.ci_runtime }}
       - name: Install binding-matched Vulkan headers and Volk
         shell: bash
         working-directory: source/modules/antono2/vulkan
@@ -148,6 +164,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - name: Validate and resolve tested compatibility
+        id: compat
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
+          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
+          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -156,7 +180,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/memory
-          ref: v1.4.0
+          ref: ${{ steps.compat.outputs.module_memory }}
           path: source/modules/antono2/memory
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -195,19 +219,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - name: Validate and resolve tested compatibility
+        id: compat
+        shell: bash
+        working-directory: ${{ github.workspace }}
+        run: |
+          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
+          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
+          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
-          ref: v3.2.2
+          ref: ${{ steps.compat.outputs.module_vulkan }}
           path: source/modules/antono2/vulkan
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/memory
-          ref: v1.4.0
+          ref: ${{ steps.compat.outputs.module_memory }}
           path: source/modules/antono2/memory
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
-          version: 0.5.2
+          version: ${{ steps.compat.outputs.v_release }}
       - name: Verify the declared dependency graph
         shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
