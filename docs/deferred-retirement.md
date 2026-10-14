@@ -1,15 +1,9 @@
-# Deferred upload retirement integration fixture
+# Fenced upload retirement
 
-This branch demonstrates a candidate integration for
-[memory PR #34](https://github.com/antono2/memory/pull/34). It is ready for review
-with that source revision in an isolated module overlay. The released allocator
-still declares `antono2.memory@v1.4.0`; the candidate example must not be merged
-or advertised as working with that release. Update the dependency and tested
-manifest together after the new memory API is released.
-
-Allocator baseline: `b85f1ec7f29d3eb0442bff57e5cc3b1ee2ea7a26`.
-Memory candidate: `8b2c2d8a59e2bb1cbb60b87a4e6212861f422f72`.
-Vulkan dependency: `a8ca830921ca77a6826f5040054b7c330f2dfa06` (`v3.2.2`).
+This example uses `antono2.memory@v1.5.0` and the Vulkan dependency pinned in
+`v.mod` and `compatibility.json`. Install the declared dependencies with the
+repository setup script. If using an isolated module directory, set `VMODULES`
+to that directory before setup and validation.
 
 `examples/buffer_suballocation/deferred_uploads.v` uses the existing example's
 device and allocator. It registers upload slices in a two-entry retirement queue,
@@ -37,11 +31,11 @@ The two existing instance/device descriptor locals are mutable for compatibility
 with the pinned V3 compiler's pointer checking. No public UploadRing API changes
 are required. This is Linux device evidence, not native Windows/macOS coverage.
 
-Reproduce with an overlay containing this allocator, candidate memory and Vulkan:
+Run from the repository root with the native Vulkan prerequisites installed:
 
 ```sh
-export VMODULES=${VMODULES:?Set VMODULES to the isolated module directory}
 compiler=${VEXE:-v}
+"$compiler" run setup.vsh
 VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation \
   "$compiler" run examples/buffer_suballocation
 ```
