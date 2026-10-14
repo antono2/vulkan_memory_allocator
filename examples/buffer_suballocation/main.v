@@ -26,7 +26,7 @@ fn first_physical_device(instance vk.Instance) !vk.PhysicalDevice {
 
 fn run() ! {
 	require_success(vk.initialize_loader(), 'initialize Vulkan loader')!
-	application_info := vk.ApplicationInfo{
+	mut application_info := vk.ApplicationInfo{
 		pApplicationName:   c'vkmemalloc suballocation example'
 		applicationVersion: 1
 		pEngineName:        c'none'
@@ -50,7 +50,7 @@ fn run() ! {
 		device_extensions << vk.ext_memory_budget_extension_name
 	}
 	mut priority := f32(1)
-	queue_info := vk.DeviceQueueCreateInfo{
+	mut queue_info := vk.DeviceQueueCreateInfo{
 		queueFamilyIndex: 0
 		queueCount:       1
 		pQueuePriorities: &priority
@@ -242,6 +242,7 @@ fn run() ! {
 	uploads_destroyed := uploads.destroy()
 	assert uploads_destroyed
 	assert allocator.stats().block_count == 0
+	run_deferred_uploads(device, 0, mut allocator)!
 }
 
 fn main() {
