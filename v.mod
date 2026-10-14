@@ -2,9 +2,9 @@ Module {
   name: 'antono2.vkmemalloc'
   author: 'Anton Oreskin'
   description: 'Policy-driven Vulkan memory selection, suballocation, mapping, and diagnostics'
-  version: '2.6.2'
+  version: '2.7.0'
   license: 'MIT'
   repo_url: 'https://github.com/antono2/vulkan_memory_allocator'
   tags: ['V','vulkan','allocator']
-  dependencies: ['antono2.vulkan@v3.2.2','antono2.memory@v1.4.0']
+  dependencies: ['antono2.vulkan@v3.2.2','antono2.memory@v1.5.0']
 }

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 2.7.0 - 2026-10-14
+
+- Pin `antono2.memory` v1.5.0 and extend the buffer example with bounded,
+  completion-driven upload retirement.
+- Submit real buffer copies, observe fences before reuse, exercise upload-ring
+  wraparound and backpressure, and verify independent host readback.
+- Keep the existing `UploadRing` API and caller-owned synchronization contract.
+- Document completion domains, cleanup ordering and portable reproduction steps.
+- Make Vulkan descriptor locals compatible with current V pointer checking.
+- Discover a transfer-capable queue and run fenced upload checks on Linux with
+  Lavapipe and Windows with MSVC/SwiftShader and Vulkan validation enabled.
+
 ## 2.6.0 - 2026-09-12
 
 - Add explicit `create_suballocated_image()` and

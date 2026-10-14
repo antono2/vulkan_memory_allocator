@@ -76,11 +76,16 @@ replace an installed SDK. CI runs the complete allocator test suite on Windows
 Server 2022 with MSVC and SwiftShader. Linux CI additionally runs the real
 Vulkan buffer, image and sustained-allocation example workloads.
 
-The allocator uses the production-hardened v1.4 release of
+The allocator uses the v1.5 release of
 [`antono2.memory`](https://github.com/antono2/memory), specifically
 `memory.RangeAllocator`,
 for its dependency-free block suballocation policy. Vulkan handles remain
 isolated in this module.
+
+The buffer-suballocation example also demonstrates
+[fenced upload retirement](docs/deferred-retirement.md) using
+`memory.RetirementQueue`. It observes real Vulkan fence completion, preserves
+FIFO slice release and verifies copied data through mapped readback.
 
 ## Basic use
 
