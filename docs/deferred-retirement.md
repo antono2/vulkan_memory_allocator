@@ -30,7 +30,9 @@ support. The helper receives the created queue family index.
 
 The two existing instance/device descriptor locals are mutable for compatibility
 with the pinned V3 compiler's pointer checking. No public UploadRing API changes
-are required. This is Linux device evidence, not native Windows/macOS coverage.
+are required. These local results are Linux device evidence. CI separately runs
+the fenced-copy program on native Windows with MSVC, SwiftShader and validation
+enabled. No native macOS runtime coverage is claimed.
 
 Run from the repository root with the native Vulkan prerequisites installed:
 

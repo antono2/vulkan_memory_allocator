@@ -142,7 +142,7 @@ jobs:
       - name: Verify the public setup diagnostics
         working-directory: source/modules/antono2/vkmemalloc
         run: v run setup.vsh --check
-      - name: Test with the Microsoft C compiler
+      - name: Test and run fenced uploads with the Microsoft C compiler
         working-directory: source/modules/antono2/vkmemalloc
         shell: pwsh
         run: |
@@ -152,6 +152,10 @@ jobs:
           Import-Module (Join-Path $InstallPath 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
           Enter-VsDevShell -VsInstallPath $InstallPath -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
           v -cc msvc test .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:VK_INSTANCE_LAYERS = 'VK_LAYER_KHRONOS_validation'
+          v -cc msvc run examples/buffer_suballocation
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   linux-v-master:
     name: Advisory current V master and Vulkan master
