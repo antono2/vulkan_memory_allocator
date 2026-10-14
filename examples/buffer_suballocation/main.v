@@ -44,6 +44,7 @@ fn run() ! {
 	vk.load_instance_commands(instance)
 
 	physical_device := first_physical_device(instance)!
+	transfer_family := transfer_queue_family(physical_device)!
 	memory_budget_supported := vma.supports_memory_budget(physical_device)
 	mut device_extensions := []&char{}
 	if memory_budget_supported {
@@ -51,7 +52,7 @@ fn run() ! {
 	}
 	mut priority := f32(1)
 	mut queue_info := vk.DeviceQueueCreateInfo{
-		queueFamilyIndex: 0
+		queueFamilyIndex: transfer_family
 		queueCount:       1
 		pQueuePriorities: &priority
 	}
@@ -242,7 +243,7 @@ fn run() ! {
 	uploads_destroyed := uploads.destroy()
 	assert uploads_destroyed
 	assert allocator.stats().block_count == 0
-	run_deferred_uploads(device, 0, mut allocator)!
+	run_deferred_uploads(device, transfer_family, mut allocator)!
 }
 
 fn main() {

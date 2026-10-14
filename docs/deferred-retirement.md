@@ -16,8 +16,9 @@ permit independent mapped readback of values `21,22,23` before shutdown.
 The example performs no premature reuse even if the GPU finishes before the
 application polls. Cleanup waits for actual device completion before draining
 and destroying pending resources. Device-loss recovery was not fault-injected.
-The existing example uses queue family zero; the tested devices provide a usable
-transfer-capable queue there. The helper accepts the created queue family index.
+The example discovers an available transfer-capable queue before creating the
+device. Graphics and compute queues qualify through their implicit transfer
+support. The helper receives the created queue family index.
 
 ## Verified locally
 

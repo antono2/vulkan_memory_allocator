@@ -6,6 +6,30 @@ import antono2.memory
 import antono2.vkmemalloc as vma
 import antono2.vulkan as vk
 
+// Graphics and compute queues implicitly support transfer operations even if
+// the driver omits the explicit transfer flag. Ignore unavailable queues.
+fn select_transfer_family(properties []vk.QueueFamilyProperties) ?u32 {
+	capabilities := u32(vk.QueueFlagBits.graphics) | u32(vk.QueueFlagBits.compute) | u32(vk.QueueFlagBits.transfer)
+	for index, property in properties {
+		if property.queueCount > 0 && property.queueFlags & capabilities != 0 {
+			return u32(index)
+		}
+	}
+	return none
+}
+
+fn transfer_queue_family(physical_device vk.PhysicalDevice) !u32 {
+	mut count := u32(0)
+	mut no_properties := unsafe { nil }
+	vk.get_physical_device_queue_family_properties(physical_device, &count, mut no_properties)
+	if count == 0 { return error('physical device has no queue families') }
+	mut properties := []vk.QueueFamilyProperties{len: int(count)}
+	vk.get_physical_device_queue_family_properties(physical_device, &count, mut properties[0])
+	return select_transfer_family(properties[..int(count)]) or {
+		return error('physical device has no transfer-capable queue family')
+	}
+}
+
 fn record_upload(command vk.CommandBuffer, source vk.Buffer, destination vk.Buffer, slice vma.UploadSlice, offset u64) ! {
 	begin := vk.CommandBufferBeginInfo{
 		flags: u32(vk.CommandBufferUsageFlagBits.one_time_submit)
