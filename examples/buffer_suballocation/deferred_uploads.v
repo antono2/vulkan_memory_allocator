@@ -20,7 +20,7 @@ fn select_transfer_family(properties []vk.QueueFamilyProperties) ?u32 {
 
 fn transfer_queue_family(physical_device vk.PhysicalDevice) !u32 {
 	mut count := u32(0)
-	mut no_properties := unsafe { nil }
+	mut no_properties := unsafe { &vk.QueueFamilyProperties(nil) }
 	vk.get_physical_device_queue_family_properties(physical_device, &count, mut no_properties)
 	if count == 0 { return error('physical device has no queue families') }
 	mut properties := []vk.QueueFamilyProperties{len: int(count)}
