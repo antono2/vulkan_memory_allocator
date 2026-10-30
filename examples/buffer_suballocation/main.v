@@ -128,10 +128,8 @@ fn run() ! {
 	require_success(allocator.map(mut first_allocation, &first_mapped), 'map first staging buffer')!
 	require_success(allocator.map(mut second_allocation, &second_mapped),
 		'map second staging buffer')!
-	unsafe {
-		*(&u8(first_mapped)) = 21
-		*(&u8(second_mapped)) = 42
-	}
+	store_mapped_byte(first_mapped, 21)
+	store_mapped_byte(second_mapped, 42)
 	require_success(allocator.flush(first_allocation), 'flush first upload buffer')!
 	require_success(allocator.flush(second_allocation), 'flush second upload buffer')!
 	assert usize(second_mapped) - usize(first_mapped) == second_allocation.offset - first_allocation.offset
