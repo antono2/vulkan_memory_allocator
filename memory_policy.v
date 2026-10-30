@@ -81,7 +81,7 @@ pub fn supports_memory_budget(physical_device vk.PhysicalDevice) bool {
 	}
 	for {
 		mut count := u32(0)
-		mut no_properties := unsafe { nil }
+		mut no_properties := unsafe { &vk.ExtensionProperties(nil) }
 		if vk.enumerate_device_extension_properties(physical_device, unsafe { nil }, &count, mut no_properties) != .success
 			|| count == 0 {
 			return false
