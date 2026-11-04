@@ -1,3 +1,5 @@
+// Reproduces an escaped mapped-pointer store to guard against the V heap-promotion cast bug.
+// Uses host bytes only; no Vulkan device or GPU allocation is required.
 module main
 
 fn escaped_mapped_byte_store(bytes []u8, value u8) &voidptr {
