@@ -1,10 +1,6 @@
-import json
 import os
 import time
-
-struct SetupProfile {
-	modules map[string]string
-}
+import v.vmod
 
 struct SetupFixture {
 	work         string
@@ -17,18 +13,17 @@ fn new_setup_fixture() SetupFixture {
 	work := os.join_path(os.temp_dir(),
 		'allocator setup with spaces ${os.getpid()} ${time.sys_mono_now()}')
 	modules := os.join_path(work, 'modules')
-	log := os.join_path(work, 'commands.jsonl')
+	log := os.join_path(work, 'commands.tsv')
 	setup := os.join_path(modules, 'antono2', 'vulkan', 'setup.vsh')
 	os.mkdir_all(os.dir(setup)) or { panic(err) }
 	os.write_file(setup, '// Native setup is intercepted by the fixture CLI.\n') or { panic(err) }
 	fake_source := os.join_path(work, 'fake_v.v')
 	os.write_file(fake_source, 'module main
-import json
 import os
 fn main() {
  mut log := os.open_append(os.getenv("SETUP_COMMAND_LOG")) or { panic(err) }
  defer { log.close() }
- log.writeln(json.encode(os.args[1..])) or { panic(err) }
+ log.writeln(os.args[1..].join("\t")) or { panic(err) }
 }
 ') or {
 		panic(err)
@@ -72,7 +67,7 @@ fn (fixture SetupFixture) run_setup(arguments string, expected int) [][]string {
 	mut commands := [][]string{}
 	if os.is_file(fixture.log) {
 		for line in os.read_lines(fixture.log) or { panic(err) } {
-			commands << json.decode([]string, line) or { panic(err) }
+			commands << line.split('\t')
 		}
 	}
 	return commands
@@ -82,12 +77,13 @@ fn test_setup_install_uses_declared_dependency_versions() {
 	fixture := new_setup_fixture()
 	defer { fixture.close() }
 	commands := fixture.run_setup('--install', 0)
-	profile := json.decode(SetupProfile, os.read_file(os.join_path(@VMODROOT, 'compatibility.json')) or {
+	profile := vmod.decode(os.read_file(os.join_path(@VMODROOT, 'v.mod')) or { panic(err) }) or {
 		panic(err)
-	}) or { panic(err) }
+	}
 	installs := commands.filter(it[0] == 'install').map(it[1])
-	assert installs == ['antono2.vulkan@${profile.modules['vulkan']}',
-		'antono2.memory@${profile.modules['memory']}', 'antono2.vkmemalloc']
+	mut expected_installs := profile.dependencies.clone()
+	expected_installs << profile.name
+	assert installs == expected_installs
 	assert commands[1] == ['run', os.join_path(fixture.modules, 'antono2', 'vulkan', 'setup.vsh'),
 		'--install']
 	assert commands.last() == ['test', @VMODROOT]
