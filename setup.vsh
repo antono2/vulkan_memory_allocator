@@ -27,7 +27,7 @@ fn main() {
 	}
 	install := os.args.len == 1 || os.args[1] == '--install'
 	if install {
-		run('v install antono2.vulkan@v3.2.0') or { panic(err) }
+		run('v install antono2.vulkan@v3.2.2') or { panic(err) }
 	}
 	vulkan_setup := os.join_path(os.vmodules_dir(), 'antono2', 'vulkan', 'setup.vsh')
 	if !os.is_file(vulkan_setup) {
@@ -44,7 +44,7 @@ fn main() {
 		}
 	}
 	if install {
-		run('v install antono2.memory') or { panic(err) }
+		run('v install antono2.memory@v1.5.0') or { panic(err) }
 		run('v install antono2.vkmemalloc') or { panic(err) }
 	}
 	project_dir := os.dir(os.real_path(@FILE))

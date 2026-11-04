@@ -47,6 +47,9 @@ jobs:
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: ${{ steps.compat.outputs.v_release }}
+      - name: Test setup command routing
+        working-directory: source/modules/antono2/vkmemalloc
+        run: python scripts/test_setup.py
       - name: Verify the declared dependency graph
         shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
@@ -112,6 +115,9 @@ jobs:
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: ${{ steps.compat.outputs.v_release }}
+      - name: Test setup command routing
+        working-directory: source/modules/antono2/vkmemalloc
+        run: python scripts/test_setup.py
       - name: Verify the declared dependency graph
         shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
