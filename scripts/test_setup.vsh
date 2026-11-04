@@ -1,0 +1,110 @@
+import os
+import time
+import v.vmod
+
+struct SetupFixture {
+	work         string
+	modules      string
+	log          string
+	original_env map[string]string
+}
+
+fn new_setup_fixture() SetupFixture {
+	work := os.join_path(os.temp_dir(),
+		'allocator setup with spaces ${os.getpid()} ${time.sys_mono_now()}')
+	modules := os.join_path(work, 'modules')
+	log := os.join_path(work, 'commands.tsv')
+	setup := os.join_path(modules, 'antono2', 'vulkan', 'setup.vsh')
+	os.mkdir_all(os.dir(setup)) or { panic(err) }
+	os.write_file(setup, '// Native setup is intercepted by the fixture CLI.\n') or { panic(err) }
+	fake_source := os.join_path(work, 'fake_v.v')
+	os.write_file(fake_source, 'module main
+import os
+fn main() {
+ mut log := os.open_append(os.getenv("SETUP_COMMAND_LOG")) or { panic(err) }
+ defer { log.close() }
+ log.writeln(os.args[1..].join("\t")) or { panic(err) }
+}
+') or {
+		panic(err)
+	}
+	fake_cli := os.join_path(work, $if windows { 'v.exe' } $else { 'v' })
+	compile :=
+		os.execute('${os.quoted_path(@VEXE)} -o ${os.quoted_path(fake_cli)} ${os.quoted_path(fake_source)}')
+	assert compile.exit_code == 0, compile.output
+	mut original_env := map[string]string{}
+	for name in ['VMODULES', 'SETUP_COMMAND_LOG', 'V_C_ERROR_BUG_REPORT_DISABLED', 'PATH'] {
+		if value := os.getenv_opt(name) {
+			original_env[name] = value
+		}
+	}
+	fixture := SetupFixture{work, modules, log, original_env}
+	os.setenv('VMODULES', modules, true)
+	os.setenv('SETUP_COMMAND_LOG', log, true)
+	os.setenv('V_C_ERROR_BUG_REPORT_DISABLED', '1', true)
+	os.setenv('PATH', work + os.path_delimiter + os.getenv('PATH'), true)
+	return fixture
+}
+
+fn (fixture SetupFixture) close() {
+	for name in ['VMODULES', 'SETUP_COMMAND_LOG', 'V_C_ERROR_BUG_REPORT_DISABLED', 'PATH'] {
+		if name in fixture.original_env {
+			os.setenv(name, fixture.original_env[name], true)
+		} else {
+			os.unsetenv(name)
+		}
+	}
+	os.rmdir_all(fixture.work) or { panic(err) }
+}
+
+fn (fixture SetupFixture) run_setup(arguments string, expected int) [][]string {
+	// setup --check can itself run this suite. Give the probe its own output
+	// path so Windows never tries to replace the still-running outer setup.exe.
+	probe := os.join_path(fixture.work, $if windows { 'setup-probe.exe' } $else { 'setup-probe' })
+	result := os.execute('${os.quoted_path(@VEXE)} -o ${os.quoted_path(probe)} run ${os.quoted_path(os.join_path(@VMODROOT,
+		'setup.vsh'))} ${arguments}')
+	assert result.exit_code == expected, result.output
+	mut commands := [][]string{}
+	if os.is_file(fixture.log) {
+		for line in os.read_lines(fixture.log) or { panic(err) } {
+			commands << line.split('\t')
+		}
+	}
+	return commands
+}
+
+fn test_setup_install_uses_declared_dependency_versions() {
+	fixture := new_setup_fixture()
+	defer { fixture.close() }
+	commands := fixture.run_setup('--install', 0)
+	profile := vmod.decode(os.read_file(os.join_path(@VMODROOT, 'v.mod')) or { panic(err) }) or {
+		panic(err)
+	}
+	installs := commands.filter(it[0] == 'install').map(it[1])
+	mut expected_installs := profile.dependencies.clone()
+	expected_installs << profile.name
+	assert installs == expected_installs
+	assert commands[1] == ['run', os.join_path(fixture.modules, 'antono2', 'vulkan', 'setup.vsh'),
+		'--install']
+	assert commands.last() == ['test', @VMODROOT]
+}
+
+fn test_setup_check_performs_no_installs() {
+	fixture := new_setup_fixture()
+	defer { fixture.close() }
+	assert fixture.run_setup('--check', 0) == [
+		['run', os.join_path(fixture.modules, 'antono2', 'vulkan', 'setup.vsh'), '--check'],
+		['test', @VMODROOT],
+	]
+}
+
+fn test_setup_invalid_option_performs_no_commands() {
+	fixture := new_setup_fixture()
+	defer { fixture.close() }
+	assert fixture.run_setup('--unknown', 2) == [][]string{}
+}
+
+test_setup_install_uses_declared_dependency_versions()
+test_setup_check_performs_no_installs()
+test_setup_invalid_option_performs_no_commands()
+println('Setup CLI checks passed: dependency requests, read-only mode, invalid option.')
