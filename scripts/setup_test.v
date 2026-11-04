@@ -37,7 +37,13 @@ fn main() {
 	compile :=
 		os.execute('${os.quoted_path(@VEXE)} -o ${os.quoted_path(fake_cli)} ${os.quoted_path(fake_source)}')
 	assert compile.exit_code == 0, compile.output
-	fixture := SetupFixture{work, modules, log, os.environ()}
+	mut original_env := map[string]string{}
+	for name in ['VMODULES', 'SETUP_COMMAND_LOG', 'V_C_ERROR_BUG_REPORT_DISABLED', 'PATH'] {
+		if value := os.getenv_opt(name) {
+			original_env[name] = value
+		}
+	}
+	fixture := SetupFixture{work, modules, log, original_env}
 	os.setenv('VMODULES', modules, true)
 	os.setenv('SETUP_COMMAND_LOG', log, true)
 	os.setenv('V_C_ERROR_BUG_REPORT_DISABLED', '1', true)
@@ -57,7 +63,10 @@ fn (fixture SetupFixture) close() {
 }
 
 fn (fixture SetupFixture) run_setup(arguments string, expected int) [][]string {
-	result := os.execute('${os.quoted_path(@VEXE)} run ${os.quoted_path(os.join_path(@VMODROOT,
+	// setup --check can itself run this suite. Give the probe its own output
+	// path so Windows never tries to replace the still-running outer setup.exe.
+	probe := os.join_path(fixture.work, $if windows { 'setup-probe.exe' } $else { 'setup-probe' })
+	result := os.execute('${os.quoted_path(@VEXE)} -o ${os.quoted_path(probe)} run ${os.quoted_path(os.join_path(@VMODROOT,
 		'setup.vsh'))} ${arguments}')
 	assert result.exit_code == expected, result.output
 	mut commands := [][]string{}
