@@ -50,6 +50,9 @@ jobs:
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: ${{ steps.compat.outputs.v_release }}
+      - name: Test setup command routing
+        working-directory: source/modules/antono2/vkmemalloc
+        run: v run scripts/test_setup.vsh
       - name: Verify the declared dependency graph
         shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
@@ -115,6 +118,9 @@ jobs:
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
         with:
           version: ${{ steps.compat.outputs.v_release }}
+      - name: Test setup command routing
+        working-directory: source/modules/antono2/vkmemalloc
+        run: v run scripts/test_setup.vsh
       - name: Verify the declared dependency graph
         shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
@@ -201,7 +207,9 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev
       - name: Test with V3 and GCC
         working-directory: source/modules/antono2/vkmemalloc
-        run: v -cc gcc test .
+        run: |
+          v run scripts/test_setup.vsh
+          v -cc gcc test .
 
   test:
     if: always()

@@ -107,3 +107,8 @@ fn test_setup_invalid_option_performs_no_commands() {
 	defer { fixture.close() }
 	assert fixture.run_setup('--unknown', 2) == [][]string{}
 }
+
+test_setup_install_uses_declared_dependency_versions()
+test_setup_check_performs_no_installs()
+test_setup_invalid_option_performs_no_commands()
+println('Setup CLI checks passed: dependency requests, read-only mode, invalid option.')
