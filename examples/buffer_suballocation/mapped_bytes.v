@@ -1,7 +1,8 @@
 module main
 
-// Pass the pointer value into a fresh local scope: vlang/v#31481 otherwise
-// casts a heap-promoted voidptr slot's address instead of its stored value.
+// Keep this helper for compatibility with older V3 compilers (vlang/v#31481).
+// Passing the pointer value into a fresh scope prevents a heap-promoted
+// pointer slot from being used as the byte-store destination.
 fn store_mapped_byte(mapped voidptr, value u8) {
 	unsafe {
 		*(&u8(mapped)) = value
