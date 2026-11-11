@@ -1,3 +1,5 @@
+// Verifies setup CLI dependency pins, read-only checks and invalid-option handling.
+// A fixture V executable records commands so the checks never install real dependencies.
 import os
 import time
 import v.vmod
