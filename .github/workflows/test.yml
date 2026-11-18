@@ -29,14 +29,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
+        with:
+          version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
-          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
-          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -48,6 +51,7 @@ jobs:
           ref: ${{ steps.compat.outputs.module_memory }}
           path: source/modules/antono2/memory
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
+        if: steps.compat.outputs.v_release != '0.5.2'
         with:
           version: ${{ steps.compat.outputs.v_release }}
       - name: Test setup command routing
@@ -97,14 +101,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
+        with:
+          version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
-          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
-          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -116,6 +123,7 @@ jobs:
           ref: ${{ steps.compat.outputs.module_memory }}
           path: source/modules/antono2/memory
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
+        if: steps.compat.outputs.v_release != '0.5.2'
         with:
           version: ${{ steps.compat.outputs.v_release }}
       - name: Test setup command routing
@@ -177,14 +185,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
+        with:
+          version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
-          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
-          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -234,14 +245,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: source/modules/antono2/vkmemalloc
+      - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
+        with:
+          version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
         shell: bash
         working-directory: ${{ github.workspace }}
         run: |
-          python source/modules/antono2/vkmemalloc/scripts/test_compatibility.py
-          python source/modules/antono2/vkmemalloc/scripts/test_doctor.py
-          python source/modules/antono2/vkmemalloc/scripts/compatibility.py --github-output "$GITHUB_OUTPUT"
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
+          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -253,6 +267,7 @@ jobs:
           ref: ${{ steps.compat.outputs.module_memory }}
           path: source/modules/antono2/memory
       - uses: prantlf/setup-v-action@92f20bea50d2c9931a28c96bb4997a3c7357baf0 # v4
+        if: steps.compat.outputs.v_release != '0.5.2'
         with:
           version: ${{ steps.compat.outputs.v_release }}
       - name: Verify the declared dependency graph
