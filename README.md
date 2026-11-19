@@ -53,6 +53,19 @@ or host storage. The three programs under `examples/` exercise the Vulkan driver
 and require a hardware or software device. Use those examples to check resource
 integration in addition to the CPU tests.
 
+## Runnable integrations
+
+- The [buffer suballocation example](examples/buffer_suballocation) exercises
+  buffer creation and staging uploads. The [image example](examples/image_suballocation)
+  demonstrates allocating and binding Vulkan images.
+- [Torus Trooper](https://github.com/antono2/torus_trooper) uses the allocator for
+  [persistently mapped vertex buffers](https://github.com/antono2/torus_trooper/blob/main/runtime/vulkan_memory.v).
+- The [Vulkan Video player](https://github.com/antono2/v_vulkan_video) creates an
+  [allocator alongside its Vulkan device](https://github.com/antono2/v_vulkan_video/blob/master/device_context.v)
+  for video and presentation resources.
+
+![Torus Trooper title screen rendered with the game’s Vulkan backend](https://raw.githubusercontent.com/antono2/torus_trooper/main/docs/images/title-screen.png)
+
 ## Install
 ```sh
 v install antono2.vkmemalloc
