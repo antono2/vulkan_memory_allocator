@@ -34,12 +34,7 @@ jobs:
           version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh compatibility
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -58,7 +53,6 @@ jobs:
         working-directory: source/modules/antono2/vkmemalloc
         run: v run scripts/test_setup.vsh
       - name: Verify the declared dependency graph
-        shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
       - name: Install Vulkan development library
         run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev mesa-vulkan-drivers vulkan-validationlayers
@@ -70,28 +64,13 @@ jobs:
         # V 0.5.2's directory-mode vet parser does not accept aliased imports.
         run: v vet block_pool.v block_pool_test.v block_pool_stress_test.v diagnostics.v diagnostics_test.v mapped_memory.v mapped_memory_test.v memory_policy.v memory_policy_test.v upload_ring.v upload_ring_test.v vulkan_memory_allocator.v vulkan_memory_allocator_test.v
       - name: Run allocator tests
-        working-directory: source/modules/antono2/vkmemalloc
-        run: |
-          v -cc gcc test .
-          v -cc tcc test .
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh linux-tests
       - name: Run Vulkan suballocation smoke test
-        working-directory: source/modules/antono2/vkmemalloc
-        run: |
-          lavapipe_icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
-          test -n "$lavapipe_icd"
-          VK_ICD_FILENAMES="$lavapipe_icd" v run examples/buffer_suballocation
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh lavapipe buffer_suballocation
       - name: Run Vulkan image suballocation smoke test
-        working-directory: source/modules/antono2/vkmemalloc
-        run: |
-          lavapipe_icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
-          test -n "$lavapipe_icd"
-          VK_ICD_FILENAMES="$lavapipe_icd" v run examples/image_suballocation
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh lavapipe image_suballocation
       - name: Run sustained Vulkan allocation workload
-        working-directory: source/modules/antono2/vkmemalloc
-        run: |
-          lavapipe_icd=$(find /usr/share/vulkan/icd.d -name 'lvp_icd*.json' -print -quit)
-          test -n "$lavapipe_icd"
-          VK_ICD_FILENAMES="$lavapipe_icd" v run examples/stress
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh lavapipe stress
 
   windows:
     runs-on: windows-2022
@@ -106,12 +85,7 @@ jobs:
           version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh compatibility
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -130,32 +104,13 @@ jobs:
         working-directory: source/modules/antono2/vkmemalloc
         run: v run scripts/test_setup.vsh
       - name: Verify the declared dependency graph
-        shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
-      - name: Install Vulkan SDK and SwiftShader test artifacts
-        shell: bash
-        run: bash source/modules/antono2/vulkan/.github/scripts/setup-vulkan-ci.sh ${{ steps.compat.outputs.ci_sdk }} ${{ steps.compat.outputs.ci_runtime }}
-      - name: Install binding-matched Vulkan headers and Volk
-        shell: bash
-        working-directory: source/modules/antono2/vulkan
-        run: |
-          set -euo pipefail
-          registry_commit=$(tr -d '\r\n' < REGISTRY_COMMIT)
-          registry_checkout="$RUNNER_TEMP/Vulkan-Headers"
-          git init "$registry_checkout"
-          git -C "$registry_checkout" remote add origin https://github.com/KhronosGroup/Vulkan-Headers.git
-          git -C "$registry_checkout" fetch --depth 1 origin "$registry_commit"
-          git -C "$registry_checkout" checkout --detach FETCH_HEAD
-          cp -R "$registry_checkout/include/." "$VULKAN_SDK/include/"
-
-          volk_commit=$(tr -d '\r\n' < VOLK_COMMIT)
-          mkdir -p "$VULKAN_SDK/include/volk"
-          curl --fail --silent --show-error --location \
-            "https://raw.githubusercontent.com/zeux/volk/$volk_commit/volk.h" \
-            --output "$VULKAN_SDK/include/volk/volk.h"
-          curl --fail --silent --show-error --location \
-            "https://raw.githubusercontent.com/zeux/volk/$volk_commit/volk.c" \
-            --output "$VULKAN_SDK/include/volk/volk.c"
+      - name: Install Vulkan SDK, SwiftShader, and binding headers
+        uses: antono2/vulkan/.github/actions/setup-vulkan-ci@d471ec81d8f133a6ac1fddf511d4ce8d95866774
+        with:
+          sdk-version: ${{ steps.compat.outputs.ci_sdk }}
+          artifact-tag: ${{ steps.compat.outputs.ci_runtime }}
+          bindings-path: source/modules/antono2/vulkan
       - name: Verify the public setup diagnostics
         working-directory: source/modules/antono2/vkmemalloc
         run: v run setup.vsh --check
@@ -168,11 +123,7 @@ jobs:
           if (-not $InstallPath) { throw 'Visual Studio C++ tools were not found' }
           Import-Module (Join-Path $InstallPath 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
           Enter-VsDevShell -VsInstallPath $InstallPath -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
-          v -cc msvc test .
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:VK_INSTANCE_LAYERS = 'VK_LAYER_KHRONOS_validation'
-          v -cc msvc run examples/buffer_suballocation
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          v run scripts/platform_ci.vsh windows-tests
 
   linux-v-master:
     name: Advisory current V master and Vulkan master
@@ -190,12 +141,7 @@ jobs:
           version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh compatibility
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -212,15 +158,10 @@ jobs:
           ref: master
           path: toolchain/v
       - name: Build current V master
-        run: |
-          make -C toolchain/v
-          echo "$GITHUB_WORKSPACE/toolchain/v" >> "$GITHUB_PATH"
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh build-master
       - run: sudo apt-get update && sudo apt-get install -y libvulkan-dev libvulkan-volk-dev
       - name: Test with V3 and GCC
-        working-directory: source/modules/antono2/vkmemalloc
-        run: |
-          v run scripts/test_setup.vsh
-          v -cc gcc test .
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh master-tests
 
   test:
     if: always()
@@ -250,12 +191,7 @@ jobs:
           version: 0.5.2
       - name: Validate and resolve tested compatibility
         id: compat
-        shell: bash
-        working-directory: ${{ github.workspace }}
-        run: |
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/doctor.vsh --self-test
-          v run source/modules/antono2/vkmemalloc/scripts/compatibility.vsh --github-output "$GITHUB_OUTPUT"
+        run: v run source/modules/antono2/vkmemalloc/scripts/platform_ci.vsh compatibility
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: antono2/vulkan
@@ -271,7 +207,6 @@ jobs:
         with:
           version: ${{ steps.compat.outputs.v_release }}
       - name: Verify the declared dependency graph
-        shell: bash
         run: v run source/modules/antono2/vkmemalloc/scripts/check_installed_deps.vsh
       - name: Install native compiler and Vulkan development library
         run: sudo apt-get update && sudo apt-get install -y clang libvulkan-dev libvulkan-volk-dev
