@@ -114,16 +114,11 @@ jobs:
       - name: Verify the public setup diagnostics
         working-directory: source/modules/antono2/vkmemalloc
         run: v run setup.vsh --check
+      - name: Configure MSVC x64
+        uses: antono2/vulkan/.github/actions/setup-msvc@23ec75dc6015776f3012880148ca90e66f63010a
       - name: Test and run fenced uploads with the Microsoft C compiler
         working-directory: source/modules/antono2/vkmemalloc
-        shell: pwsh
-        run: |
-          $VsWhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-          $InstallPath = & $VsWhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (-not $InstallPath) { throw 'Visual Studio C++ tools were not found' }
-          Import-Module (Join-Path $InstallPath 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
-          Enter-VsDevShell -VsInstallPath $InstallPath -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
-          v run scripts/platform_ci.vsh windows-tests
+        run: v run scripts/platform_ci.vsh windows-tests
 
   linux-v-master:
     name: Advisory current V master and Vulkan master
